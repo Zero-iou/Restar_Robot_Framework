@@ -1,0 +1,2369 @@
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 1
+
+
+   1              		.cpu cortex-m4
+   2              		.arch armv7e-m
+   3              		.fpu fpv4-sp-d16
+   4              		.eabi_attribute 27, 1
+   5              		.eabi_attribute 28, 1
+   6              		.eabi_attribute 20, 1
+   7              		.eabi_attribute 21, 1
+   8              		.eabi_attribute 23, 3
+   9              		.eabi_attribute 24, 1
+  10              		.eabi_attribute 25, 1
+  11              		.eabi_attribute 26, 1
+  12              		.eabi_attribute 30, 1
+  13              		.eabi_attribute 34, 1
+  14              		.eabi_attribute 18, 4
+  15              		.file	"balance_chassis.c"
+  16              		.text
+  17              	.Ltext0:
+  18              		.cfi_sections	.debug_frame
+  19              		.file 1 "application/chassis/balance_chassis.c"
+  20              		.section	.text.EstimateSpeed,"ax",%progbits
+  21              		.align	1
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	EstimateSpeed:
+  27              	.LFB279:
+   1:application/chassis/balance_chassis.c **** /**
+   2:application/chassis/balance_chassis.c ****  * @file chassis.c
+   3:application/chassis/balance_chassis.c ****  * @author Zero 1433026627@qq.com
+   4:application/chassis/balance_chassis.c ****  * @brief 底盘应用,负责接收robot_cmd的控制命令并根据命令进行运动学解算,得
+   5:application/chassis/balance_chassis.c ****  *        注意底盘采取右手系,对于平面视图,底盘纵向运动的正前方为x正方�
+   6:application/chassis/balance_chassis.c ****  *
+   7:application/chassis/balance_chassis.c ****  * @version 0.1
+   8:application/chassis/balance_chassis.c ****  * @date 2024-11-18
+   9:application/chassis/balance_chassis.c ****  *
+  10:application/chassis/balance_chassis.c ****  * @copyright Copyright (c) 2022 Team JiaoLong-SJTU
+  11:application/chassis/balance_chassis.c ****  *
+  12:application/chassis/balance_chassis.c ****  */
+  13:application/chassis/balance_chassis.c **** 
+  14:application/chassis/balance_chassis.c **** #include "balance_chassis.h"
+  15:application/chassis/balance_chassis.c **** #include "robot_def.h"
+  16:application/chassis/balance_chassis.c **** #include "dmmotor.h"
+  17:application/chassis/balance_chassis.c **** #include "dji_motor.h"
+  18:application/chassis/balance_chassis.c **** #include "super_cap.h"
+  19:application/chassis/balance_chassis.c **** #include "power_manager.h"   
+  20:application/chassis/balance_chassis.c **** #include "message_center.h"
+  21:application/chassis/balance_chassis.c **** #include "kalman_filter.h"
+  22:application/chassis/balance_chassis.c **** #include "user_lib.h"
+  23:application/chassis/balance_chassis.c **** #include "VMC.h"
+  24:application/chassis/balance_chassis.c **** #include "LQR.h"
+  25:application/chassis/balance_chassis.c **** 
+  26:application/chassis/balance_chassis.c **** #include "general_def.h"
+  27:application/chassis/balance_chassis.c **** #include "bsp_dwt.h"
+  28:application/chassis/balance_chassis.c **** #include "arm_math.h"
+  29:application/chassis/balance_chassis.c **** 
+  30:application/chassis/balance_chassis.c **** //这里使用了extern INS后续需要删掉
+  31:application/chassis/balance_chassis.c **** #include "ins_task.h"
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 2
+
+
+  32:application/chassis/balance_chassis.c **** 
+  33:application/chassis/balance_chassis.c **** static Chassis_Config_s *chassis_config;
+  34:application/chassis/balance_chassis.c ****  
+  35:application/chassis/balance_chassis.c **** /* 底盘应用包含的模块和信息存储,底盘是单例模式,因此不需要为底盘建立�
+  36:application/chassis/balance_chassis.c **** #ifdef CHASSIS_BOARD // 如果是底盘板,使用板载IMU获取底盘转动角速度
+  37:application/chassis/balance_chassis.c **** #include "can_comm.h"
+  38:application/chassis/balance_chassis.c **** #include "ins_task.h"
+  39:application/chassis/balance_chassis.c **** static CANCommInstance *chasiss_can_comm; // 双板通信CAN comm
+  40:application/chassis/balance_chassis.c **** attitude_t *Chassis_IMU_data;
+  41:application/chassis/balance_chassis.c **** #endif // CHASSIS_BOARD
+  42:application/chassis/balance_chassis.c **** #ifdef ONE_BOARD
+  43:application/chassis/balance_chassis.c **** static Publisher_t *chassis_pub;                    // 用于发布底盘的数据
+  44:application/chassis/balance_chassis.c **** static Subscriber_t *chassis_sub;                   // 用于订阅底盘的控制命令
+  45:application/chassis/balance_chassis.c **** #endif                                              // !ONE_BOARD
+  46:application/chassis/balance_chassis.c **** static Chassis_Ctrl_Cmd_s chassis_cmd_recv;         // 底盘接收到的控制命令
+  47:application/chassis/balance_chassis.c **** static Chassis_Upload_Data_s chassis_feedback_data; // 底盘回传的反馈数据
+  48:application/chassis/balance_chassis.c **** 
+  49:application/chassis/balance_chassis.c **** //  static SuperCapInstance *cap;                                       // 超级电容
+  50:application/chassis/balance_chassis.c **** //  static PowerManagerInstance *power_manager;                         // 功率管理
+  51:application/chassis/balance_chassis.c ****  
+  52:application/chassis/balance_chassis.c **** static DMMotorInstance *motor_lf, *motor_rf, *motor_lb, *motor_rb;
+  53:application/chassis/balance_chassis.c **** static DJIMotorInstance *foot_motor_lf, *foot_motor_rf;
+  54:application/chassis/balance_chassis.c **** 
+  55:application/chassis/balance_chassis.c **** static VMC_t vmc_l, vmc_r;
+  56:application/chassis/balance_chassis.c **** static LQR_t lqr_l, lqr_r;
+  57:application/chassis/balance_chassis.c **** 
+  58:application/chassis/balance_chassis.c **** static const float k[12][3] = {
+  59:application/chassis/balance_chassis.c ****     131.778304, -137.557891, -13.340548,
+  60:application/chassis/balance_chassis.c ****     14.450102, -14.817570, -2.881438,
+  61:application/chassis/balance_chassis.c ****     14.055766, -15.065086, -6.124135,
+  62:application/chassis/balance_chassis.c ****     12.382752, -16.090410, -13.327124,
+  63:application/chassis/balance_chassis.c ****     38.775877, -69.636522, 40.157613,
+  64:application/chassis/balance_chassis.c ****     6.353800, -7.748552, 4.724512,
+  65:application/chassis/balance_chassis.c ****     -176.546894, 55.045389, 32.904874,
+  66:application/chassis/balance_chassis.c ****     -0.484142, -13.475066, 10.489045,
+  67:application/chassis/balance_chassis.c ****     -35.258015, 5.650781, 10.570830,
+  68:application/chassis/balance_chassis.c ****     -32.883040, -11.998524, 22.408794,
+  69:application/chassis/balance_chassis.c ****     -151.696537, 148.889444, 36.419835,
+  70:application/chassis/balance_chassis.c ****     -10.525397, 11.837334, 1.114983
+  71:application/chassis/balance_chassis.c **** };
+  72:application/chassis/balance_chassis.c **** 
+  73:application/chassis/balance_chassis.c **** static float len_l = 0.2, len_r = 0.2; 
+  74:application/chassis/balance_chassis.c **** 
+  75:application/chassis/balance_chassis.c **** static float target_speed, speed, speed_m, dist;
+  76:application/chassis/balance_chassis.c **** static float joint_lf_tor, joint_lb_tor, joint_rf_tor, joint_rb_tor;
+  77:application/chassis/balance_chassis.c **** static float foot_l_tor, foot_r_tor;
+  78:application/chassis/balance_chassis.c **** 
+  79:application/chassis/balance_chassis.c **** 
+  80:application/chassis/balance_chassis.c **** static KalmanFilter_t kf;
+  81:application/chassis/balance_chassis.c **** 
+  82:application/chassis/balance_chassis.c **** static PIDInstance l_leg_PID, r_leg_PID;
+  83:application/chassis/balance_chassis.c **** /* 私有变量用于底盘旋转的机械参数常量 */
+  84:application/chassis/balance_chassis.c **** //  static float lf_center, rf_center, lb_center, rb_center; // 左右前后轮子中心
+  85:application/chassis/balance_chassis.c **** //  static float rpm_2_wheel_vector;
+  86:application/chassis/balance_chassis.c **** /* 用于自旋变速策略的时间变量 */
+  87:application/chassis/balance_chassis.c **** // static float t;
+  88:application/chassis/balance_chassis.c ****  
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 3
+
+
+  89:application/chassis/balance_chassis.c **** /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
+  90:application/chassis/balance_chassis.c **** //  static float chassis_vx, chassis_vy;                 // 将云台系的速度投影到底盘
+  91:application/chassis/balance_chassis.c **** //  static float vt_lf, vt_rf, vt_lb, vt_rb;             // 底盘速度解算后的输出
+  92:application/chassis/balance_chassis.c **** //  static float rl_vt_lf, rl_vt_rf, rl_vt_lb, rl_vt_rb; // 底盘真实速度 m/s
+  93:application/chassis/balance_chassis.c **** // static DRMotorInstance *drmotor;
+  94:application/chassis/balance_chassis.c **** 
+  95:application/chassis/balance_chassis.c **** static void EstimateSpeed();
+  96:application/chassis/balance_chassis.c **** 
+  97:application/chassis/balance_chassis.c **** #ifndef GIMBAL_BOARD
+  98:application/chassis/balance_chassis.c **** 
+  99:application/chassis/balance_chassis.c **** #define VEL_PROCESS_NOISE 100   // 速度过程噪声
+ 100:application/chassis/balance_chassis.c **** #define VEL_MEASURE_NOISE 200  // 速度测量噪声
+ 101:application/chassis/balance_chassis.c **** // 同时估计加速度和速度时对加速度的噪声
+ 102:application/chassis/balance_chassis.c **** // 更好的方法是设置为动态,当有冲击时/加加速度大时更相信轮速
+ 103:application/chassis/balance_chassis.c **** #define ACC_PROCESS_NOISE 2000  // 加速度过程噪声
+ 104:application/chassis/balance_chassis.c **** #define ACC_MEASURE_NOISE 0.05  // 加速度测量噪声
+ 105:application/chassis/balance_chassis.c **** #define TASK_CONTROL_PERIOD 0.001f
+ 106:application/chassis/balance_chassis.c **** 
+ 107:application/chassis/balance_chassis.c **** // 不能用运算符，算出结果有误
+ 108:application/chassis/balance_chassis.c **** #define REDUCE_RATIO_FOOT 0.063432f
+ 109:application/chassis/balance_chassis.c **** 
+ 110:application/chassis/balance_chassis.c ****  void BalanceChassisInit()
+ 111:application/chassis/balance_chassis.c ****  {
+ 112:application/chassis/balance_chassis.c ****     //  static float half_wheel_base, half_track_width, perimeter_wheel;    // 半轴距,半轮距,
+ 113:application/chassis/balance_chassis.c ****     //  static float center_gimbal_offset_x, center_gimbal_offset_y;        // 中心云台偏移�
+ 114:application/chassis/balance_chassis.c ****     //  static float reduction_ratio_wheel;                                 // 轮子减速比
+ 115:application/chassis/balance_chassis.c **** 
+ 116:application/chassis/balance_chassis.c ****     chassis_config = ChassisConfigFeed();
+ 117:application/chassis/balance_chassis.c **** 
+ 118:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.tx_id = chassis_config->chassis_motor_id[M
+ 119:application/chassis/balance_chassis.c ****     foot_motor_lf = DJIMotorInit(&chassis_config->chassis_motor_config);    
+ 120:application/chassis/balance_chassis.c **** 
+ 121:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.tx_id = chassis_config->chassis_motor_id[M
+ 122:application/chassis/balance_chassis.c ****     foot_motor_rf = DJIMotorInit(&chassis_config->chassis_motor_config);    
+ 123:application/chassis/balance_chassis.c **** 
+ 124:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.tx_id = chassis_config->chassis_motor_id[M
+ 125:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 1;
+ 126:application/chassis/balance_chassis.c ****     motor_lf = DMMotorInit(&chassis_config->chassis_motor_config);    
+ 127:application/chassis/balance_chassis.c **** 
+ 128:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.tx_id = chassis_config->chassis_motor_id[M
+ 129:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 2;
+ 130:application/chassis/balance_chassis.c ****     motor_rf = DMMotorInit(&chassis_config->chassis_motor_config);    
+ 131:application/chassis/balance_chassis.c **** 
+ 132:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.tx_id = chassis_config->chassis_motor_id[M
+ 133:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 3;
+ 134:application/chassis/balance_chassis.c ****     motor_rb = DMMotorInit(&chassis_config->chassis_motor_config);    
+ 135:application/chassis/balance_chassis.c **** 
+ 136:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.tx_id = chassis_config->chassis_motor_id[M
+ 137:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 4;
+ 138:application/chassis/balance_chassis.c ****     motor_lb = DMMotorInit(&chassis_config->chassis_motor_config);    
+ 139:application/chassis/balance_chassis.c **** 
+ 140:application/chassis/balance_chassis.c ****     // PID会影响是否能站立正常
+ 141:application/chassis/balance_chassis.c ****     PID_Init_Config_s l_config_PID = {
+ 142:application/chassis/balance_chassis.c ****         .Kp = 200.0f,
+ 143:application/chassis/balance_chassis.c ****         .Ki = 0.0f,
+ 144:application/chassis/balance_chassis.c ****         .Kd = 45.0f,
+ 145:application/chassis/balance_chassis.c ****         .MaxOut = 10.0f,
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 4
+
+
+ 146:application/chassis/balance_chassis.c ****         .DeadBand = 0.0001f,
+ 147:application/chassis/balance_chassis.c **** 
+ 148:application/chassis/balance_chassis.c ****         .Improve = PID_ChangingIntegrationRate | PID_Trapezoid_Intergral | 
+ 149:application/chassis/balance_chassis.c ****                 PID_DerivativeFilter | PID_Derivative_On_Measurement,
+ 150:application/chassis/balance_chassis.c **** 
+ 151:application/chassis/balance_chassis.c ****         .CoefB = 0.01f,
+ 152:application/chassis/balance_chassis.c ****         .Output_LPF_RC = 0.02f,
+ 153:application/chassis/balance_chassis.c ****         .Derivative_LPF_RC = 0.08f,
+ 154:application/chassis/balance_chassis.c ****     };
+ 155:application/chassis/balance_chassis.c **** 
+ 156:application/chassis/balance_chassis.c ****     PID_Init_Config_s r_config_PID = {
+ 157:application/chassis/balance_chassis.c ****         .Kp = 200.0f,
+ 158:application/chassis/balance_chassis.c ****         .Ki = 0.0f,
+ 159:application/chassis/balance_chassis.c ****         .Kd = 45.0f,
+ 160:application/chassis/balance_chassis.c ****         .MaxOut = 30.0f,
+ 161:application/chassis/balance_chassis.c ****         .DeadBand = 0.0001f,
+ 162:application/chassis/balance_chassis.c **** 
+ 163:application/chassis/balance_chassis.c ****         .Improve = PID_ChangingIntegrationRate | PID_Trapezoid_Intergral | 
+ 164:application/chassis/balance_chassis.c ****                 PID_DerivativeFilter | PID_Derivative_On_Measurement,
+ 165:application/chassis/balance_chassis.c **** 
+ 166:application/chassis/balance_chassis.c ****         .CoefB = 0.01f,
+ 167:application/chassis/balance_chassis.c ****         .Output_LPF_RC = 0.02f,
+ 168:application/chassis/balance_chassis.c ****         .Derivative_LPF_RC = 0.08f,
+ 169:application/chassis/balance_chassis.c ****     };
+ 170:application/chassis/balance_chassis.c **** 
+ 171:application/chassis/balance_chassis.c ****     PIDInit(&l_leg_PID, &l_config_PID);
+ 172:application/chassis/balance_chassis.c ****     PIDInit(&r_leg_PID, &r_config_PID);
+ 173:application/chassis/balance_chassis.c **** 
+ 174:application/chassis/balance_chassis.c ****     // 使用kf同时估计速度和加速度
+ 175:application/chassis/balance_chassis.c ****     Kalman_Filter_Init(&kf, 2, 0, 2);
+ 176:application/chassis/balance_chassis.c ****     float F[4] = {1, 0.001, 0, 1};
+ 177:application/chassis/balance_chassis.c ****     float Q[4] = {VEL_PROCESS_NOISE, 0, 0, ACC_MEASURE_NOISE};
+ 178:application/chassis/balance_chassis.c ****     float R[4] = {VEL_MEASURE_NOISE, 0, 0, ACC_MEASURE_NOISE};
+ 179:application/chassis/balance_chassis.c ****     float P[4] = {100000, 0, 0, 100000};
+ 180:application/chassis/balance_chassis.c ****     float H[4] = {1, 0, 0, 1};
+ 181:application/chassis/balance_chassis.c ****     memcpy(kf.F_data, F, sizeof(F));
+ 182:application/chassis/balance_chassis.c ****     memcpy(kf.Q_data, Q, sizeof(Q));
+ 183:application/chassis/balance_chassis.c ****     memcpy(kf.R_data, R, sizeof(R));
+ 184:application/chassis/balance_chassis.c ****     memcpy(kf.P_data, P, sizeof(P));
+ 185:application/chassis/balance_chassis.c ****     memcpy(kf.H_data, H, sizeof(H));
+ 186:application/chassis/balance_chassis.c **** 
+ 187:application/chassis/balance_chassis.c ****     VMC_Init(&vmc_l, 0.15, 0.27, 0.15, TASK_CONTROL_PERIOD);
+ 188:application/chassis/balance_chassis.c ****     VMC_Init(&vmc_r, 0.15, 0.27, 0.15, TASK_CONTROL_PERIOD);
+ 189:application/chassis/balance_chassis.c **** 
+ 190:application/chassis/balance_chassis.c ****     LQR_Init(&lqr_l, k);
+ 191:application/chassis/balance_chassis.c ****     LQR_Init(&lqr_r, k);
+ 192:application/chassis/balance_chassis.c **** 
+ 193:application/chassis/balance_chassis.c ****      // 发布订阅初始化,如果为双板,则需要can comm来传递消息
+ 194:application/chassis/balance_chassis.c ****  #ifdef CHASSIS_BOARD
+ 195:application/chassis/balance_chassis.c ****      Chassis_IMU_data = INS_Init(); // 底盘IMU初始化
+ 196:application/chassis/balance_chassis.c ****  
+ 197:application/chassis/balance_chassis.c ****      CANComm_Init_Config_s comm_conf = {
+ 198:application/chassis/balance_chassis.c ****          .can_config = {
+ 199:application/chassis/balance_chassis.c ****              .can_handle = &hcan2,
+ 200:application/chassis/balance_chassis.c ****              .tx_id = 0x311,
+ 201:application/chassis/balance_chassis.c ****              .rx_id = 0x312,
+ 202:application/chassis/balance_chassis.c ****          },
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 5
+
+
+ 203:application/chassis/balance_chassis.c ****          .recv_data_len = sizeof(Chassis_Ctrl_Cmd_s),
+ 204:application/chassis/balance_chassis.c ****          .send_data_len = sizeof(Chassis_Upload_Data_s),
+ 205:application/chassis/balance_chassis.c ****      };
+ 206:application/chassis/balance_chassis.c ****      chasiss_can_comm = CANCommInit(&comm_conf); // can comm初始化
+ 207:application/chassis/balance_chassis.c ****  #endif                                          // CHASSIS_BOARD
+ 208:application/chassis/balance_chassis.c ****  
+ 209:application/chassis/balance_chassis.c ****  #ifdef ONE_BOARD // 单板控制整车,则通过pubsub来传递消息
+ 210:application/chassis/balance_chassis.c ****      chassis_sub = SubRegister("chassis_cmd", sizeof(Chassis_Ctrl_Cmd_s));
+ 211:application/chassis/balance_chassis.c ****      chassis_pub = PubRegister("chassis_feed", sizeof(Chassis_Upload_Data_s));
+ 212:application/chassis/balance_chassis.c ****  #endif // ONE_BOARD
+ 213:application/chassis/balance_chassis.c ****  }
+ 214:application/chassis/balance_chassis.c **** 
+ 215:application/chassis/balance_chassis.c ****  #define TORQ_K 3350.9803f
+ 216:application/chassis/balance_chassis.c ****  /**
+ 217:application/chassis/balance_chassis.c ****   * @brief 计算每个轮毂电机的输出,正运动学解算
+ 218:application/chassis/balance_chassis.c ****   *        用宏进行预替换减小开销,运动解算具体过程参考教程
+ 219:application/chassis/balance_chassis.c ****   */
+ 220:application/chassis/balance_chassis.c ****  static float chassis_accel, chassis_vx, chassis_x, chassis_x_set, flag;
+ 221:application/chassis/balance_chassis.c **** 
+ 222:application/chassis/balance_chassis.c ****  float left_wheel_phi_vx, right_wheel_phi_vx;
+ 223:application/chassis/balance_chassis.c ****  float left_body_vx, right_body_vx;
+ 224:application/chassis/balance_chassis.c ****  static void BalanceControlCalculate()
+ 225:application/chassis/balance_chassis.c ****  {
+ 226:application/chassis/balance_chassis.c ****     EstimateSpeed();
+ 227:application/chassis/balance_chassis.c **** 
+ 228:application/chassis/balance_chassis.c ****     LQR_SetSpeed(&lqr_l, chassis_cmd_recv.vx);
+ 229:application/chassis/balance_chassis.c ****     LQR_SetSpeed(&lqr_r, chassis_cmd_recv.vx);
+ 230:application/chassis/balance_chassis.c **** 
+ 231:application/chassis/balance_chassis.c ****     if (fabsf(speed) < 0.1f) {
+ 232:application/chassis/balance_chassis.c ****         dist += speed * TASK_CONTROL_PERIOD;
+ 233:application/chassis/balance_chassis.c ****     } else {
+ 234:application/chassis/balance_chassis.c ****         dist = 0.4f;
+ 235:application/chassis/balance_chassis.c ****     }
+ 236:application/chassis/balance_chassis.c **** 
+ 237:application/chassis/balance_chassis.c ****     LQR_Calc(&lqr_l, vmc_l, dist, speed, chassis_cmd_recv.pitch, chassis_cmd_recv.pitch_gyro);
+ 238:application/chassis/balance_chassis.c ****     LQR_Calc(&lqr_r, vmc_r, dist, speed, chassis_cmd_recv.pitch, chassis_cmd_recv.pitch_gyro);
+ 239:application/chassis/balance_chassis.c **** 
+ 240:application/chassis/balance_chassis.c ****     if (chassis_cmd_recv.chassis_mode == CHASSIS_FOLLOW_GIMBAL_YAW)
+ 241:application/chassis/balance_chassis.c ****     {
+ 242:application/chassis/balance_chassis.c ****         len_l = 0.2f;
+ 243:application/chassis/balance_chassis.c ****         len_r = 0.2f;
+ 244:application/chassis/balance_chassis.c ****     }
+ 245:application/chassis/balance_chassis.c ****     else
+ 246:application/chassis/balance_chassis.c ****     {
+ 247:application/chassis/balance_chassis.c ****         len_l = 0.2f;
+ 248:application/chassis/balance_chassis.c ****         len_r = 0.2f;
+ 249:application/chassis/balance_chassis.c ****     }
+ 250:application/chassis/balance_chassis.c **** 
+ 251:application/chassis/balance_chassis.c ****  }
+ 252:application/chassis/balance_chassis.c **** 
+ 253:application/chassis/balance_chassis.c **** 
+ 254:application/chassis/balance_chassis.c **** float j_stand_torque_l, j_stand_torque_r;
+ 255:application/chassis/balance_chassis.c **** float j_force_torque_l, j_force_torque_r;
+ 256:application/chassis/balance_chassis.c ****  static void BalanceTorqueCombine()
+ 257:application/chassis/balance_chassis.c ****  {
+ 258:application/chassis/balance_chassis.c **** 
+ 259:application/chassis/balance_chassis.c ****     // roll_comp = k_roll_extra_comp_p * INS.Roll * DEGREE_2_RAD;
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 6
+
+
+ 260:application/chassis/balance_chassis.c ****     // left_leg_F_ = left_leg_len_.Calculate() + k_gravity_comp - roll_comp;
+ 261:application/chassis/balance_chassis.c ****     // right_leg_F_ = right_leg_len_.Calculate() + k_gravity_comp + roll_comp;
+ 262:application/chassis/balance_chassis.c **** 
+ 263:application/chassis/balance_chassis.c ****     j_stand_torque_l = PIDCalculate(&l_leg_PID, vmc_l.l0, len_l);
+ 264:application/chassis/balance_chassis.c ****     j_stand_torque_r = PIDCalculate(&r_leg_PID, vmc_r.l0, len_r);
+ 265:application/chassis/balance_chassis.c **** 
+ 266:application/chassis/balance_chassis.c ****     j_force_torque_l = lqr_l.T_[1];
+ 267:application/chassis/balance_chassis.c ****     j_force_torque_r = lqr_r.T_[1];
+ 268:application/chassis/balance_chassis.c **** 
+ 269:application/chassis/balance_chassis.c ****     // joint_lb_tor = vmc_l.j_[0] * j_stand_torque_l;
+ 270:application/chassis/balance_chassis.c ****     // joint_lf_tor = vmc_l.j_[2] * j_stand_torque_l;
+ 271:application/chassis/balance_chassis.c **** 
+ 272:application/chassis/balance_chassis.c ****     joint_lb_tor = vmc_l.j_[0] * j_stand_torque_l + vmc_l.j_[1] * j_force_torque_l;
+ 273:application/chassis/balance_chassis.c ****     joint_lf_tor = vmc_l.j_[2] * j_stand_torque_l + vmc_l.j_[3] * j_force_torque_l;
+ 274:application/chassis/balance_chassis.c **** 
+ 275:application/chassis/balance_chassis.c ****     joint_rb_tor = vmc_r.j_[0] * j_stand_torque_r + vmc_r.j_[1] * j_force_torque_r;
+ 276:application/chassis/balance_chassis.c ****     joint_rf_tor = vmc_r.j_[2] * j_stand_torque_r + vmc_r.j_[3] * j_force_torque_r;
+ 277:application/chassis/balance_chassis.c **** 
+ 278:application/chassis/balance_chassis.c ****     // if (left_leg_.GetForceNormal() < 20.0f) {
+ 279:application/chassis/balance_chassis.c ****     //     foot_l_tor = lqr_l.T_[0];
+ 280:application/chassis/balance_chassis.c ****     //   } else {
+ 281:application/chassis/balance_chassis.c ****     //     foot_l_tor = lqr_left_.GetWheelTor() - yaw_speed_.GetOutput();
+ 282:application/chassis/balance_chassis.c ****     //   }
+ 283:application/chassis/balance_chassis.c ****     //   if (right_leg_.GetForceNormal() < 20.0f) {
+ 284:application/chassis/balance_chassis.c ****     //     foot_r_tor = lqr_right_.GetWheelTor();
+ 285:application/chassis/balance_chassis.c ****     //   } else {
+ 286:application/chassis/balance_chassis.c ****     //     foot_r_tor = lqr_right_.GetWheelTor() + yaw_speed_.GetOutput();
+ 287:application/chassis/balance_chassis.c ****     //   }
+ 288:application/chassis/balance_chassis.c **** 
+ 289:application/chassis/balance_chassis.c ****     foot_l_tor = lqr_l.T_[0] * TORQ_K;
+ 290:application/chassis/balance_chassis.c ****     foot_r_tor = lqr_r.T_[0] * TORQ_K;
+ 291:application/chassis/balance_chassis.c **** 
+ 292:application/chassis/balance_chassis.c ****     // 限幅输出
+ 293:application/chassis/balance_chassis.c ****     joint_lf_tor = float_constrain(joint_lf_tor, -8.5f, 8.5f);
+ 294:application/chassis/balance_chassis.c ****     joint_lb_tor = float_constrain(joint_lb_tor, -8.5f, 8.5f);
+ 295:application/chassis/balance_chassis.c **** 
+ 296:application/chassis/balance_chassis.c ****     joint_rf_tor = float_constrain(joint_rf_tor, -8.5f, 8.5f);
+ 297:application/chassis/balance_chassis.c ****     joint_rb_tor = float_constrain(joint_rb_tor, -8.5f, 8.5f);
+ 298:application/chassis/balance_chassis.c ****     foot_l_tor = int_constrain(foot_l_tor, -16000, 16000);
+ 299:application/chassis/balance_chassis.c ****     foot_r_tor = int_constrain(foot_r_tor, -16000, 16000);
+ 300:application/chassis/balance_chassis.c ****  }
+ 301:application/chassis/balance_chassis.c **** 
+ 302:application/chassis/balance_chassis.c **** 
+ 303:application/chassis/balance_chassis.c ****  /**
+ 304:application/chassis/balance_chassis.c ****   * @brief 根据每个轮子的速度反馈,计算底盘的实际运动速度,逆运动解算
+ 305:application/chassis/balance_chassis.c ****   *        对于双板的情况,考虑增加来自底盘板IMU的数据
+ 306:application/chassis/balance_chassis.c ****   *
+ 307:application/chassis/balance_chassis.c ****   */
+ 308:application/chassis/balance_chassis.c ****  static void EstimateSpeed()
+ 309:application/chassis/balance_chassis.c ****  {
+  28              		.loc 1 309 2 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32 0000 10B5     		push	{r4, lr}
+  33              	.LCFI0:
+  34              		.cfi_def_cfa_offset 8
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 7
+
+
+  35              		.cfi_offset 4, -8
+  36              		.cfi_offset 14, -4
+ 310:application/chassis/balance_chassis.c ****     float l_w_vx_, r_w_vx_, l_b_vx_, r_b_vx_;
+  37              		.loc 1 310 5 view .LVU1
+ 311:application/chassis/balance_chassis.c **** 
+ 312:application/chassis/balance_chassis.c ****     l_w_vx_ = foot_motor_lf->measure.speed_aps * REDUCE_RATIO_FOOT * DEGREE_2_RAD + vmc_l.dphi2;
+  38              		.loc 1 312 5 view .LVU2
+  39              		.loc 1 312 28 is_stmt 0 view .LVU3
+  40 0002 214B     		ldr	r3, .L3
+  41 0004 1B68     		ldr	r3, [r3]
+  42              		.loc 1 312 37 view .LVU4
+  43 0006 D3ED027A 		vldr.32	s15, [r3, #8]
+  44              		.loc 1 312 48 view .LVU5
+  45 000a 9FED206A 		vldr.32	s12, .L3+4
+  46 000e 67EE867A 		vmul.f32	s15, s15, s12
+  47              		.loc 1 312 68 view .LVU6
+  48 0012 DFED1F6A 		vldr.32	s13, .L3+8
+  49 0016 67EEA67A 		vmul.f32	s15, s15, s13
+  50              		.loc 1 312 90 view .LVU7
+  51 001a 1E4B     		ldr	r3, .L3+12
+  52 001c 93ED0F7A 		vldr.32	s14, [r3, #60]
+  53              		.loc 1 312 13 view .LVU8
+  54 0020 77EE877A 		vadd.f32	s15, s15, s14
+  55              	.LVL0:
+ 313:application/chassis/balance_chassis.c ****     r_w_vx_ = -foot_motor_rf->measure.speed_aps * REDUCE_RATIO_FOOT * DEGREE_2_RAD + vmc_r.dphi2;
+  56              		.loc 1 313 5 is_stmt 1 view .LVU9
+  57              		.loc 1 313 29 is_stmt 0 view .LVU10
+  58 0024 1C4B     		ldr	r3, .L3+16
+  59 0026 1B68     		ldr	r3, [r3]
+  60              		.loc 1 313 38 view .LVU11
+  61 0028 93ED027A 		vldr.32	s14, [r3, #8]
+  62              		.loc 1 313 49 view .LVU12
+  63 002c 27EE467A 		vnmul.f32	s14, s14, s12
+  64              		.loc 1 313 69 view .LVU13
+  65 0030 27EE267A 		vmul.f32	s14, s14, s13
+  66              		.loc 1 313 91 view .LVU14
+  67 0034 194B     		ldr	r3, .L3+20
+  68 0036 D3ED0F6A 		vldr.32	s13, [r3, #60]
+  69              		.loc 1 313 13 view .LVU15
+  70 003a 37EE267A 		vadd.f32	s14, s14, s13
+  71              	.LVL1:
+ 314:application/chassis/balance_chassis.c ****     // l_w_vx_ = foot_motor_lf->measure.speed_aps * REDUCE_RATIO_FOOT * DEGREE_2_RAD;
+ 315:application/chassis/balance_chassis.c ****     // r_w_vx_ = -foot_motor_rf->measure.speed_aps * REDUCE_RATIO_FOOT * DEGREE_2_RAD;
+ 316:application/chassis/balance_chassis.c **** 
+ 317:application/chassis/balance_chassis.c **** 
+ 318:application/chassis/balance_chassis.c ****     // l_b_vx_ = l_w_vx_ * 0.09f +
+ 319:application/chassis/balance_chassis.c ****     //         vmc_l.l0 * vmc_l.dtheta + vmc_l.dl0 * arm_sin_f32(vmc_l.theta);
+ 320:application/chassis/balance_chassis.c ****     // r_b_vx_ = r_w_vx_ * 0.09f +
+ 321:application/chassis/balance_chassis.c ****     //         vmc_r.l0 * vmc_r.dtheta + vmc_r.dl0 * arm_sin_f32(vmc_r.theta);
+ 322:application/chassis/balance_chassis.c **** 
+ 323:application/chassis/balance_chassis.c ****     l_b_vx_ = l_w_vx_ * 0.09f;
+  72              		.loc 1 323 5 is_stmt 1 view .LVU16
+  73              		.loc 1 323 13 is_stmt 0 view .LVU17
+  74 003e DFED186A 		vldr.32	s13, .L3+24
+  75 0042 67EEA67A 		vmul.f32	s15, s15, s13
+  76              	.LVL2:
+ 324:application/chassis/balance_chassis.c ****     r_b_vx_ = r_w_vx_ * 0.09f;
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 8
+
+
+  77              		.loc 1 324 5 is_stmt 1 view .LVU18
+  78              		.loc 1 324 13 is_stmt 0 view .LVU19
+  79 0046 27EE267A 		vmul.f32	s14, s14, s13
+  80              	.LVL3:
+ 325:application/chassis/balance_chassis.c ****     speed_m = -(l_b_vx_ + r_b_vx_) / 2;
+  81              		.loc 1 325 5 is_stmt 1 view .LVU20
+  82              		.loc 1 325 25 is_stmt 0 view .LVU21
+  83 004a 77EE877A 		vadd.f32	s15, s15, s14
+  84              	.LVL4:
+  85              		.loc 1 325 36 view .LVU22
+  86 004e B6EE007A 		vmov.f32	s14, #5.0e-1
+  87              	.LVL5:
+  88              		.loc 1 325 36 view .LVU23
+  89 0052 67EEC77A 		vnmul.f32	s15, s15, s14
+  90              		.loc 1 325 13 view .LVU24
+  91 0056 134B     		ldr	r3, .L3+28
+  92 0058 C3ED007A 		vstr.32	s15, [r3]
+ 326:application/chassis/balance_chassis.c **** 
+ 327:application/chassis/balance_chassis.c ****     // // 离地检测
+ 328:application/chassis/balance_chassis.c ****     // if (vmc_l.fn < 20.0f && vmc_r.fn < 20.0f) {
+ 329:application/chassis/balance_chassis.c ****     //     speed = 0;
+ 330:application/chassis/balance_chassis.c ****     // }
+ 331:application/chassis/balance_chassis.c ****   
+ 332:application/chassis/balance_chassis.c ****     // 使用kf同时估计加速度和速度,滤波更新
+ 333:application/chassis/balance_chassis.c ****     kf.MeasuredVector[0] = speed_m;
+  93              		.loc 1 333 5 is_stmt 1 view .LVU25
+  94              		.loc 1 333 7 is_stmt 0 view .LVU26
+  95 005c 124C     		ldr	r4, .L3+32
+  96 005e 6368     		ldr	r3, [r4, #4]
+  97              		.loc 1 333 26 view .LVU27
+  98 0060 C3ED007A 		vstr.32	s15, [r3]
+  99              	.LVL6:
+ 334:application/chassis/balance_chassis.c ****     kf.MeasuredVector[1] = INS.MotionAccel_n[Y];
+ 100              		.loc 1 334 5 is_stmt 1 view .LVU28
+ 101              		.loc 1 334 7 is_stmt 0 view .LVU29
+ 102 0064 6368     		ldr	r3, [r4, #4]
+ 103              		.loc 1 334 45 view .LVU30
+ 104 0066 114A     		ldr	r2, .L3+36
+ 105 0068 126A     		ldr	r2, [r2, #32]	@ float
+ 106              		.loc 1 334 26 view .LVU31
+ 107 006a 5A60     		str	r2, [r3, #4]	@ float
+ 335:application/chassis/balance_chassis.c ****     kf.F_data[1] = TASK_CONTROL_PERIOD;  // 更新F矩阵
+ 108              		.loc 1 335 5 is_stmt 1 view .LVU32
+ 109              		.loc 1 335 7 is_stmt 0 view .LVU33
+ 110 006c D4F80031 		ldr	r3, [r4, #256]
+ 111              		.loc 1 335 18 view .LVU34
+ 112 0070 0F4A     		ldr	r2, .L3+40
+ 113 0072 5A60     		str	r2, [r3, #4]	@ float
+ 336:application/chassis/balance_chassis.c ****     Kalman_Filter_Update(&kf);
+ 114              		.loc 1 336 5 is_stmt 1 view .LVU35
+ 115 0074 2046     		mov	r0, r4
+ 116 0076 FFF7FEFF 		bl	Kalman_Filter_Update
+ 117              	.LVL7:
+ 337:application/chassis/balance_chassis.c ****     speed = kf.xhat_data[0];
+ 118              		.loc 1 337 5 view .LVU36
+ 119              		.loc 1 337 15 is_stmt 0 view .LVU37
+ 120 007a D4F8E830 		ldr	r3, [r4, #232]
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 9
+
+
+ 121              		.loc 1 337 25 view .LVU38
+ 122 007e 1A68     		ldr	r2, [r3]	@ float
+ 123              		.loc 1 337 11 view .LVU39
+ 124 0080 0C4B     		ldr	r3, .L3+44
+ 125 0082 1A60     		str	r2, [r3]	@ float
+ 338:application/chassis/balance_chassis.c ****  }
+ 126              		.loc 1 338 2 view .LVU40
+ 127 0084 10BD     		pop	{r4, pc}
+ 128              	.L4:
+ 129 0086 00BF     		.align	2
+ 130              	.L3:
+ 131 0088 00000000 		.word	foot_motor_lf
+ 132 008c A3E8813D 		.word	1031923875
+ 133 0090 35FA8E3C 		.word	1016003125
+ 134 0094 00000000 		.word	vmc_l
+ 135 0098 00000000 		.word	foot_motor_rf
+ 136 009c 00000000 		.word	vmc_r
+ 137 00a0 EC51B83D 		.word	1035489772
+ 138 00a4 00000000 		.word	speed_m
+ 139 00a8 00000000 		.word	kf
+ 140 00ac 00000000 		.word	INS
+ 141 00b0 6F12833A 		.word	981668463
+ 142 00b4 00000000 		.word	speed
+ 143              		.cfi_endproc
+ 144              	.LFE279:
+ 146              		.section	.text.BalanceControlCalculate,"ax",%progbits
+ 147              		.align	1
+ 148              		.syntax unified
+ 149              		.thumb
+ 150              		.thumb_func
+ 152              	BalanceControlCalculate:
+ 153              	.LFB277:
+ 225:application/chassis/balance_chassis.c ****     EstimateSpeed();
+ 154              		.loc 1 225 2 is_stmt 1 view -0
+ 155              		.cfi_startproc
+ 156              		@ args = 0, pretend = 0, frame = 0
+ 157              		@ frame_needed = 0, uses_anonymous_args = 0
+ 158 0000 2DE9F043 		push	{r4, r5, r6, r7, r8, r9, lr}
+ 159              	.LCFI1:
+ 160              		.cfi_def_cfa_offset 28
+ 161              		.cfi_offset 4, -28
+ 162              		.cfi_offset 5, -24
+ 163              		.cfi_offset 6, -20
+ 164              		.cfi_offset 7, -16
+ 165              		.cfi_offset 8, -12
+ 166              		.cfi_offset 9, -8
+ 167              		.cfi_offset 14, -4
+ 168 0004 2DED028B 		vpush.64	{d8}
+ 169              	.LCFI2:
+ 170              		.cfi_def_cfa_offset 36
+ 171              		.cfi_offset 80, -36
+ 172              		.cfi_offset 81, -32
+ 173 0008 95B0     		sub	sp, sp, #84
+ 174              	.LCFI3:
+ 175              		.cfi_def_cfa_offset 120
+ 226:application/chassis/balance_chassis.c **** 
+ 176              		.loc 1 226 5 view .LVU42
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 10
+
+
+ 177 000a FFF7FEFF 		bl	EstimateSpeed
+ 178              	.LVL8:
+ 228:application/chassis/balance_chassis.c ****     LQR_SetSpeed(&lqr_r, chassis_cmd_recv.vx);
+ 179              		.loc 1 228 5 view .LVU43
+ 180 000e 394C     		ldr	r4, .L15
+ 181 0010 94ED000A 		vldr.32	s0, [r4]
+ 182 0014 3848     		ldr	r0, .L15+4
+ 183 0016 FFF7FEFF 		bl	LQR_SetSpeed
+ 184              	.LVL9:
+ 229:application/chassis/balance_chassis.c **** 
+ 185              		.loc 1 229 5 view .LVU44
+ 186 001a 94ED000A 		vldr.32	s0, [r4]
+ 187 001e 3748     		ldr	r0, .L15+8
+ 188 0020 FFF7FEFF 		bl	LQR_SetSpeed
+ 189              	.LVL10:
+ 231:application/chassis/balance_chassis.c ****         dist += speed * TASK_CONTROL_PERIOD;
+ 190              		.loc 1 231 5 view .LVU45
+ 231:application/chassis/balance_chassis.c ****         dist += speed * TASK_CONTROL_PERIOD;
+ 191              		.loc 1 231 9 is_stmt 0 view .LVU46
+ 192 0024 364B     		ldr	r3, .L15+12
+ 193 0026 93ED008A 		vldr.32	s16, [r3]
+ 194 002a B0EEC87A 		vabs.f32	s14, s16
+ 231:application/chassis/balance_chassis.c ****         dist += speed * TASK_CONTROL_PERIOD;
+ 195              		.loc 1 231 8 view .LVU47
+ 196 002e DFED357A 		vldr.32	s15, .L15+16
+ 197 0032 B4EEE77A 		vcmpe.f32	s14, s15
+ 198 0036 F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+ 199 003a 51D5     		bpl	.L12
+ 232:application/chassis/balance_chassis.c ****     } else {
+ 200              		.loc 1 232 9 is_stmt 1 view .LVU48
+ 232:application/chassis/balance_chassis.c ****     } else {
+ 201              		.loc 1 232 23 is_stmt 0 view .LVU49
+ 202 003c 9FED327A 		vldr.32	s14, .L15+20
+ 203 0040 28EE077A 		vmul.f32	s14, s16, s14
+ 232:application/chassis/balance_chassis.c ****     } else {
+ 204              		.loc 1 232 14 view .LVU50
+ 205 0044 314B     		ldr	r3, .L15+24
+ 206 0046 D3ED007A 		vldr.32	s15, [r3]
+ 207 004a 77EE877A 		vadd.f32	s15, s15, s14
+ 208 004e C3ED007A 		vstr.32	s15, [r3]
+ 209              	.L8:
+ 237:application/chassis/balance_chassis.c ****     LQR_Calc(&lqr_r, vmc_r, dist, speed, chassis_cmd_recv.pitch, chassis_cmd_recv.pitch_gyro);
+ 210              		.loc 1 237 5 is_stmt 1 view .LVU51
+ 211 0052 284C     		ldr	r4, .L15
+ 212 0054 D4F82590 		ldr	r9, [r4, #37]	@ unaligned
+ 213 0058 D4F81980 		ldr	r8, [r4, #25]	@ unaligned
+ 214 005c 2B4F     		ldr	r7, .L15+24
+ 215 005e D7ED008A 		vldr.32	s17, [r7]
+ 216 0062 2B4D     		ldr	r5, .L15+28
+ 217 0064 4C26     		movs	r6, #76
+ 218 0066 3246     		mov	r2, r6
+ 219 0068 05F10C01 		add	r1, r5, #12
+ 220 006c 6846     		mov	r0, sp
+ 221 006e FFF7FEFF 		bl	memcpy
+ 222              	.LVL11:
+ 223 0072 95E80E00 		ldm	r5, {r1, r2, r3}
+ 224 0076 01EE909A 		vmov	s3, r9
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 11
+
+
+ 225 007a 01EE108A 		vmov	s2, r8
+ 226 007e F0EE480A 		vmov.f32	s1, s16
+ 227 0082 B0EE680A 		vmov.f32	s0, s17
+ 228 0086 1C48     		ldr	r0, .L15+4
+ 229 0088 FFF7FEFF 		bl	LQR_Calc
+ 230              	.LVL12:
+ 238:application/chassis/balance_chassis.c **** 
+ 231              		.loc 1 238 5 view .LVU52
+ 232 008c D4F82590 		ldr	r9, [r4, #37]	@ unaligned
+ 233 0090 D4F81980 		ldr	r8, [r4, #25]	@ unaligned
+ 234 0094 1A4B     		ldr	r3, .L15+12
+ 235 0096 D3ED008A 		vldr.32	s17, [r3]
+ 236 009a 97ED008A 		vldr.32	s16, [r7]
+ 237 009e 1D4D     		ldr	r5, .L15+32
+ 238 00a0 3246     		mov	r2, r6
+ 239 00a2 05F10C01 		add	r1, r5, #12
+ 240 00a6 6846     		mov	r0, sp
+ 241 00a8 FFF7FEFF 		bl	memcpy
+ 242              	.LVL13:
+ 243 00ac 95E80E00 		ldm	r5, {r1, r2, r3}
+ 244 00b0 01EE909A 		vmov	s3, r9
+ 245 00b4 01EE108A 		vmov	s2, r8
+ 246 00b8 F0EE680A 		vmov.f32	s1, s17
+ 247 00bc B0EE480A 		vmov.f32	s0, s16
+ 248 00c0 0E48     		ldr	r0, .L15+8
+ 249 00c2 FFF7FEFF 		bl	LQR_Calc
+ 250              	.LVL14:
+ 240:application/chassis/balance_chassis.c ****     {
+ 251              		.loc 1 240 5 view .LVU53
+ 240:application/chassis/balance_chassis.c ****     {
+ 252              		.loc 1 240 25 is_stmt 0 view .LVU54
+ 253 00c6 237D     		ldrb	r3, [r4, #20]	@ zero_extendqisi2
+ 240:application/chassis/balance_chassis.c ****     {
+ 254              		.loc 1 240 8 view .LVU55
+ 255 00c8 032B     		cmp	r3, #3
+ 256 00ca 0DD0     		beq	.L14
+ 247:application/chassis/balance_chassis.c ****         len_r = 0.2f;
+ 257              		.loc 1 247 9 is_stmt 1 view .LVU56
+ 247:application/chassis/balance_chassis.c ****         len_r = 0.2f;
+ 258              		.loc 1 247 15 is_stmt 0 view .LVU57
+ 259 00cc 124B     		ldr	r3, .L15+36
+ 260 00ce 134A     		ldr	r2, .L15+40
+ 261 00d0 1360     		str	r3, [r2]	@ float
+ 248:application/chassis/balance_chassis.c ****     }
+ 262              		.loc 1 248 9 is_stmt 1 view .LVU58
+ 248:application/chassis/balance_chassis.c ****     }
+ 263              		.loc 1 248 15 is_stmt 0 view .LVU59
+ 264 00d2 134A     		ldr	r2, .L15+44
+ 265 00d4 1360     		str	r3, [r2]	@ float
+ 266              	.L5:
+ 251:application/chassis/balance_chassis.c **** 
+ 267              		.loc 1 251 2 view .LVU60
+ 268 00d6 15B0     		add	sp, sp, #84
+ 269              	.LCFI4:
+ 270              		.cfi_remember_state
+ 271              		.cfi_def_cfa_offset 36
+ 272              		@ sp needed
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 12
+
+
+ 273 00d8 BDEC028B 		vldm	sp!, {d8}
+ 274              	.LCFI5:
+ 275              		.cfi_restore 80
+ 276              		.cfi_restore 81
+ 277              		.cfi_def_cfa_offset 28
+ 278 00dc BDE8F083 		pop	{r4, r5, r6, r7, r8, r9, pc}
+ 279              	.L12:
+ 280              	.LCFI6:
+ 281              		.cfi_restore_state
+ 234:application/chassis/balance_chassis.c ****     }
+ 282              		.loc 1 234 9 is_stmt 1 view .LVU61
+ 234:application/chassis/balance_chassis.c ****     }
+ 283              		.loc 1 234 14 is_stmt 0 view .LVU62
+ 284 00e0 0A4B     		ldr	r3, .L15+24
+ 285 00e2 104A     		ldr	r2, .L15+48
+ 286 00e4 1A60     		str	r2, [r3]	@ float
+ 287 00e6 B4E7     		b	.L8
+ 288              	.L14:
+ 242:application/chassis/balance_chassis.c ****         len_r = 0.2f;
+ 289              		.loc 1 242 9 is_stmt 1 view .LVU63
+ 242:application/chassis/balance_chassis.c ****         len_r = 0.2f;
+ 290              		.loc 1 242 15 is_stmt 0 view .LVU64
+ 291 00e8 0B4B     		ldr	r3, .L15+36
+ 292 00ea 0C4A     		ldr	r2, .L15+40
+ 293 00ec 1360     		str	r3, [r2]	@ float
+ 243:application/chassis/balance_chassis.c ****     }
+ 294              		.loc 1 243 9 is_stmt 1 view .LVU65
+ 243:application/chassis/balance_chassis.c ****     }
+ 295              		.loc 1 243 15 is_stmt 0 view .LVU66
+ 296 00ee 0C4A     		ldr	r2, .L15+44
+ 297 00f0 1360     		str	r3, [r2]	@ float
+ 298 00f2 F0E7     		b	.L5
+ 299              	.L16:
+ 300              		.align	2
+ 301              	.L15:
+ 302 00f4 00000000 		.word	chassis_cmd_recv
+ 303 00f8 00000000 		.word	lqr_l
+ 304 00fc 00000000 		.word	lqr_r
+ 305 0100 00000000 		.word	speed
+ 306 0104 CDCCCC3D 		.word	1036831949
+ 307 0108 6F12833A 		.word	981668463
+ 308 010c 00000000 		.word	dist
+ 309 0110 00000000 		.word	vmc_l
+ 310 0114 00000000 		.word	vmc_r
+ 311 0118 CDCC4C3E 		.word	1045220557
+ 312 011c 00000000 		.word	len_l
+ 313 0120 00000000 		.word	len_r
+ 314 0124 CDCCCC3E 		.word	1053609165
+ 315              		.cfi_endproc
+ 316              	.LFE277:
+ 318              		.section	.text.BalanceTorqueCombine,"ax",%progbits
+ 319              		.align	1
+ 320              		.syntax unified
+ 321              		.thumb
+ 322              		.thumb_func
+ 324              	BalanceTorqueCombine:
+ 325              	.LFB278:
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 13
+
+
+ 257:application/chassis/balance_chassis.c **** 
+ 326              		.loc 1 257 2 is_stmt 1 view -0
+ 327              		.cfi_startproc
+ 328              		@ args = 0, pretend = 0, frame = 0
+ 329              		@ frame_needed = 0, uses_anonymous_args = 0
+ 330 0000 2DE9F843 		push	{r3, r4, r5, r6, r7, r8, r9, lr}
+ 331              	.LCFI7:
+ 332              		.cfi_def_cfa_offset 32
+ 333              		.cfi_offset 3, -32
+ 334              		.cfi_offset 4, -28
+ 335              		.cfi_offset 5, -24
+ 336              		.cfi_offset 6, -20
+ 337              		.cfi_offset 7, -16
+ 338              		.cfi_offset 8, -12
+ 339              		.cfi_offset 9, -8
+ 340              		.cfi_offset 14, -4
+ 263:application/chassis/balance_chassis.c ****     j_stand_torque_r = PIDCalculate(&r_leg_PID, vmc_r.l0, len_r);
+ 341              		.loc 1 263 5 view .LVU68
+ 263:application/chassis/balance_chassis.c ****     j_stand_torque_r = PIDCalculate(&r_leg_PID, vmc_r.l0, len_r);
+ 342              		.loc 1 263 24 is_stmt 0 view .LVU69
+ 343 0004 5C4D     		ldr	r5, .L19
+ 344 0006 5D4B     		ldr	r3, .L19+4
+ 345 0008 D3ED000A 		vldr.32	s1, [r3]
+ 346 000c 95ED0D0A 		vldr.32	s0, [r5, #52]
+ 347 0010 5B48     		ldr	r0, .L19+8
+ 348 0012 FFF7FEFF 		bl	PIDCalculate
+ 349              	.LVL15:
+ 263:application/chassis/balance_chassis.c ****     j_stand_torque_r = PIDCalculate(&r_leg_PID, vmc_r.l0, len_r);
+ 350              		.loc 1 263 22 discriminator 1 view .LVU70
+ 351 0016 5B4E     		ldr	r6, .L19+12
+ 352 0018 86ED000A 		vstr.32	s0, [r6]
+ 264:application/chassis/balance_chassis.c **** 
+ 353              		.loc 1 264 5 is_stmt 1 view .LVU71
+ 264:application/chassis/balance_chassis.c **** 
+ 354              		.loc 1 264 24 is_stmt 0 view .LVU72
+ 355 001c 5A4C     		ldr	r4, .L19+16
+ 356 001e 5B4B     		ldr	r3, .L19+20
+ 357 0020 D3ED000A 		vldr.32	s1, [r3]
+ 358 0024 94ED0D0A 		vldr.32	s0, [r4, #52]
+ 359 0028 5948     		ldr	r0, .L19+24
+ 360 002a FFF7FEFF 		bl	PIDCalculate
+ 361              	.LVL16:
+ 362 002e F0EE407A 		vmov.f32	s15, s0
+ 264:application/chassis/balance_chassis.c **** 
+ 363              		.loc 1 264 22 discriminator 1 view .LVU73
+ 364 0032 584B     		ldr	r3, .L19+28
+ 365 0034 83ED000A 		vstr.32	s0, [r3]
+ 266:application/chassis/balance_chassis.c ****     j_force_torque_r = lqr_r.T_[1];
+ 366              		.loc 1 266 5 is_stmt 1 view .LVU74
+ 266:application/chassis/balance_chassis.c ****     j_force_torque_r = lqr_r.T_[1];
+ 367              		.loc 1 266 32 is_stmt 0 view .LVU75
+ 368 0038 574A     		ldr	r2, .L19+32
+ 369 003a D2ED266A 		vldr.32	s13, [r2, #152]
+ 266:application/chassis/balance_chassis.c ****     j_force_torque_r = lqr_r.T_[1];
+ 370              		.loc 1 266 22 view .LVU76
+ 371 003e 574B     		ldr	r3, .L19+36
+ 372 0040 C3ED006A 		vstr.32	s13, [r3]
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 14
+
+
+ 267:application/chassis/balance_chassis.c **** 
+ 373              		.loc 1 267 5 is_stmt 1 view .LVU77
+ 267:application/chassis/balance_chassis.c **** 
+ 374              		.loc 1 267 32 is_stmt 0 view .LVU78
+ 375 0044 564B     		ldr	r3, .L19+40
+ 376 0046 93ED267A 		vldr.32	s14, [r3, #152]
+ 267:application/chassis/balance_chassis.c **** 
+ 377              		.loc 1 267 22 view .LVU79
+ 378 004a 5649     		ldr	r1, .L19+44
+ 379 004c 81ED007A 		vstr.32	s14, [r1]
+ 272:application/chassis/balance_chassis.c ****     joint_lf_tor = vmc_l.j_[2] * j_stand_torque_l + vmc_l.j_[3] * j_force_torque_l;
+ 380              		.loc 1 272 5 is_stmt 1 view .LVU80
+ 272:application/chassis/balance_chassis.c ****     joint_lf_tor = vmc_l.j_[2] * j_stand_torque_l + vmc_l.j_[3] * j_force_torque_l;
+ 381              		.loc 1 272 28 is_stmt 0 view .LVU81
+ 382 0050 95ED106A 		vldr.32	s12, [r5, #64]
+ 272:application/chassis/balance_chassis.c ****     joint_lf_tor = vmc_l.j_[2] * j_stand_torque_l + vmc_l.j_[3] * j_force_torque_l;
+ 383              		.loc 1 272 32 view .LVU82
+ 384 0054 96ED000A 		vldr.32	s0, [r6]
+ 385 0058 26EE006A 		vmul.f32	s12, s12, s0
+ 272:application/chassis/balance_chassis.c ****     joint_lf_tor = vmc_l.j_[2] * j_stand_torque_l + vmc_l.j_[3] * j_force_torque_l;
+ 386              		.loc 1 272 61 view .LVU83
+ 387 005c D5ED115A 		vldr.32	s11, [r5, #68]
+ 272:application/chassis/balance_chassis.c ****     joint_lf_tor = vmc_l.j_[2] * j_stand_torque_l + vmc_l.j_[3] * j_force_torque_l;
+ 388              		.loc 1 272 65 view .LVU84
+ 389 0060 66EEA55A 		vmul.f32	s11, s13, s11
+ 272:application/chassis/balance_chassis.c ****     joint_lf_tor = vmc_l.j_[2] * j_stand_torque_l + vmc_l.j_[3] * j_force_torque_l;
+ 390              		.loc 1 272 51 view .LVU85
+ 391 0064 36EE256A 		vadd.f32	s12, s12, s11
+ 272:application/chassis/balance_chassis.c ****     joint_lf_tor = vmc_l.j_[2] * j_stand_torque_l + vmc_l.j_[3] * j_force_torque_l;
+ 392              		.loc 1 272 18 view .LVU86
+ 393 0068 DFF85481 		ldr	r8, .L19+72
+ 394 006c 88ED006A 		vstr.32	s12, [r8]
+ 273:application/chassis/balance_chassis.c **** 
+ 395              		.loc 1 273 5 is_stmt 1 view .LVU87
+ 273:application/chassis/balance_chassis.c **** 
+ 396              		.loc 1 273 28 is_stmt 0 view .LVU88
+ 397 0070 95ED126A 		vldr.32	s12, [r5, #72]
+ 273:application/chassis/balance_chassis.c **** 
+ 398              		.loc 1 273 32 view .LVU89
+ 399 0074 20EE060A 		vmul.f32	s0, s0, s12
+ 273:application/chassis/balance_chassis.c **** 
+ 400              		.loc 1 273 61 view .LVU90
+ 401 0078 95ED136A 		vldr.32	s12, [r5, #76]
+ 273:application/chassis/balance_chassis.c **** 
+ 402              		.loc 1 273 65 view .LVU91
+ 403 007c 66EE866A 		vmul.f32	s13, s13, s12
+ 273:application/chassis/balance_chassis.c **** 
+ 404              		.loc 1 273 51 view .LVU92
+ 405 0080 30EE260A 		vadd.f32	s0, s0, s13
+ 273:application/chassis/balance_chassis.c **** 
+ 406              		.loc 1 273 18 view .LVU93
+ 407 0084 DFF83C91 		ldr	r9, .L19+76
+ 408 0088 89ED000A 		vstr.32	s0, [r9]
+ 275:application/chassis/balance_chassis.c ****     joint_rf_tor = vmc_r.j_[2] * j_stand_torque_r + vmc_r.j_[3] * j_force_torque_r;
+ 409              		.loc 1 275 5 is_stmt 1 view .LVU94
+ 275:application/chassis/balance_chassis.c ****     joint_rf_tor = vmc_r.j_[2] * j_stand_torque_r + vmc_r.j_[3] * j_force_torque_r;
+ 410              		.loc 1 275 28 is_stmt 0 view .LVU95
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 15
+
+
+ 411 008c D4ED106A 		vldr.32	s13, [r4, #64]
+ 275:application/chassis/balance_chassis.c ****     joint_rf_tor = vmc_r.j_[2] * j_stand_torque_r + vmc_r.j_[3] * j_force_torque_r;
+ 412              		.loc 1 275 32 view .LVU96
+ 413 0090 67EEA66A 		vmul.f32	s13, s15, s13
+ 275:application/chassis/balance_chassis.c ****     joint_rf_tor = vmc_r.j_[2] * j_stand_torque_r + vmc_r.j_[3] * j_force_torque_r;
+ 414              		.loc 1 275 61 view .LVU97
+ 415 0094 94ED116A 		vldr.32	s12, [r4, #68]
+ 275:application/chassis/balance_chassis.c ****     joint_rf_tor = vmc_r.j_[2] * j_stand_torque_r + vmc_r.j_[3] * j_force_torque_r;
+ 416              		.loc 1 275 65 view .LVU98
+ 417 0098 27EE066A 		vmul.f32	s12, s14, s12
+ 275:application/chassis/balance_chassis.c ****     joint_rf_tor = vmc_r.j_[2] * j_stand_torque_r + vmc_r.j_[3] * j_force_torque_r;
+ 418              		.loc 1 275 51 view .LVU99
+ 419 009c 76EE866A 		vadd.f32	s13, s13, s12
+ 275:application/chassis/balance_chassis.c ****     joint_rf_tor = vmc_r.j_[2] * j_stand_torque_r + vmc_r.j_[3] * j_force_torque_r;
+ 420              		.loc 1 275 18 view .LVU100
+ 421 00a0 414E     		ldr	r6, .L19+48
+ 422 00a2 C6ED006A 		vstr.32	s13, [r6]
+ 276:application/chassis/balance_chassis.c **** 
+ 423              		.loc 1 276 5 is_stmt 1 view .LVU101
+ 276:application/chassis/balance_chassis.c **** 
+ 424              		.loc 1 276 28 is_stmt 0 view .LVU102
+ 425 00a6 D4ED126A 		vldr.32	s13, [r4, #72]
+ 276:application/chassis/balance_chassis.c **** 
+ 426              		.loc 1 276 32 view .LVU103
+ 427 00aa 67EEA67A 		vmul.f32	s15, s15, s13
+ 276:application/chassis/balance_chassis.c **** 
+ 428              		.loc 1 276 61 view .LVU104
+ 429 00ae D4ED136A 		vldr.32	s13, [r4, #76]
+ 276:application/chassis/balance_chassis.c **** 
+ 430              		.loc 1 276 65 view .LVU105
+ 431 00b2 27EE267A 		vmul.f32	s14, s14, s13
+ 276:application/chassis/balance_chassis.c **** 
+ 432              		.loc 1 276 51 view .LVU106
+ 433 00b6 77EE877A 		vadd.f32	s15, s15, s14
+ 276:application/chassis/balance_chassis.c **** 
+ 434              		.loc 1 276 18 view .LVU107
+ 435 00ba 3C4F     		ldr	r7, .L19+52
+ 436 00bc C7ED007A 		vstr.32	s15, [r7]
+ 289:application/chassis/balance_chassis.c ****     foot_r_tor = lqr_r.T_[0] * TORQ_K;
+ 437              		.loc 1 289 5 is_stmt 1 view .LVU108
+ 289:application/chassis/balance_chassis.c ****     foot_r_tor = lqr_r.T_[0] * TORQ_K;
+ 438              		.loc 1 289 26 is_stmt 0 view .LVU109
+ 439 00c0 D2ED257A 		vldr.32	s15, [r2, #148]
+ 289:application/chassis/balance_chassis.c ****     foot_r_tor = lqr_r.T_[0] * TORQ_K;
+ 440              		.loc 1 289 30 view .LVU110
+ 441 00c4 9FED3A7A 		vldr.32	s14, .L19+56
+ 442 00c8 67EE877A 		vmul.f32	s15, s15, s14
+ 289:application/chassis/balance_chassis.c ****     foot_r_tor = lqr_r.T_[0] * TORQ_K;
+ 443              		.loc 1 289 16 view .LVU111
+ 444 00cc 394D     		ldr	r5, .L19+60
+ 445 00ce C5ED007A 		vstr.32	s15, [r5]
+ 290:application/chassis/balance_chassis.c **** 
+ 446              		.loc 1 290 5 is_stmt 1 view .LVU112
+ 290:application/chassis/balance_chassis.c **** 
+ 447              		.loc 1 290 26 is_stmt 0 view .LVU113
+ 448 00d2 D3ED257A 		vldr.32	s15, [r3, #148]
+ 290:application/chassis/balance_chassis.c **** 
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 16
+
+
+ 449              		.loc 1 290 30 view .LVU114
+ 450 00d6 67EE877A 		vmul.f32	s15, s15, s14
+ 290:application/chassis/balance_chassis.c **** 
+ 451              		.loc 1 290 16 view .LVU115
+ 452 00da 374C     		ldr	r4, .L19+64
+ 453 00dc C4ED007A 		vstr.32	s15, [r4]
+ 293:application/chassis/balance_chassis.c ****     joint_lb_tor = float_constrain(joint_lb_tor, -8.5f, 8.5f);
+ 454              		.loc 1 293 5 is_stmt 1 view .LVU116
+ 293:application/chassis/balance_chassis.c ****     joint_lb_tor = float_constrain(joint_lb_tor, -8.5f, 8.5f);
+ 455              		.loc 1 293 20 is_stmt 0 view .LVU117
+ 456 00e0 B2EE011A 		vmov.f32	s2, #8.5e+0
+ 457 00e4 FAEE010A 		vmov.f32	s1, #-8.5e+0
+ 458 00e8 FFF7FEFF 		bl	float_constrain
+ 459              	.LVL17:
+ 293:application/chassis/balance_chassis.c ****     joint_lb_tor = float_constrain(joint_lb_tor, -8.5f, 8.5f);
+ 460              		.loc 1 293 18 discriminator 1 view .LVU118
+ 461 00ec 89ED000A 		vstr.32	s0, [r9]
+ 294:application/chassis/balance_chassis.c **** 
+ 462              		.loc 1 294 5 is_stmt 1 view .LVU119
+ 294:application/chassis/balance_chassis.c **** 
+ 463              		.loc 1 294 20 is_stmt 0 view .LVU120
+ 464 00f0 B2EE011A 		vmov.f32	s2, #8.5e+0
+ 465 00f4 FAEE010A 		vmov.f32	s1, #-8.5e+0
+ 466 00f8 98ED000A 		vldr.32	s0, [r8]
+ 467 00fc FFF7FEFF 		bl	float_constrain
+ 468              	.LVL18:
+ 294:application/chassis/balance_chassis.c **** 
+ 469              		.loc 1 294 18 discriminator 1 view .LVU121
+ 470 0100 88ED000A 		vstr.32	s0, [r8]
+ 296:application/chassis/balance_chassis.c ****     joint_rb_tor = float_constrain(joint_rb_tor, -8.5f, 8.5f);
+ 471              		.loc 1 296 5 is_stmt 1 view .LVU122
+ 296:application/chassis/balance_chassis.c ****     joint_rb_tor = float_constrain(joint_rb_tor, -8.5f, 8.5f);
+ 472              		.loc 1 296 20 is_stmt 0 view .LVU123
+ 473 0104 B2EE011A 		vmov.f32	s2, #8.5e+0
+ 474 0108 FAEE010A 		vmov.f32	s1, #-8.5e+0
+ 475 010c 97ED000A 		vldr.32	s0, [r7]
+ 476 0110 FFF7FEFF 		bl	float_constrain
+ 477              	.LVL19:
+ 296:application/chassis/balance_chassis.c ****     joint_rb_tor = float_constrain(joint_rb_tor, -8.5f, 8.5f);
+ 478              		.loc 1 296 18 discriminator 1 view .LVU124
+ 479 0114 87ED000A 		vstr.32	s0, [r7]
+ 297:application/chassis/balance_chassis.c ****     foot_l_tor = int_constrain(foot_l_tor, -16000, 16000);
+ 480              		.loc 1 297 5 is_stmt 1 view .LVU125
+ 297:application/chassis/balance_chassis.c ****     foot_l_tor = int_constrain(foot_l_tor, -16000, 16000);
+ 481              		.loc 1 297 20 is_stmt 0 view .LVU126
+ 482 0118 B2EE011A 		vmov.f32	s2, #8.5e+0
+ 483 011c FAEE010A 		vmov.f32	s1, #-8.5e+0
+ 484 0120 96ED000A 		vldr.32	s0, [r6]
+ 485 0124 FFF7FEFF 		bl	float_constrain
+ 486              	.LVL20:
+ 297:application/chassis/balance_chassis.c ****     foot_l_tor = int_constrain(foot_l_tor, -16000, 16000);
+ 487              		.loc 1 297 18 discriminator 1 view .LVU127
+ 488 0128 86ED000A 		vstr.32	s0, [r6]
+ 298:application/chassis/balance_chassis.c ****     foot_r_tor = int_constrain(foot_r_tor, -16000, 16000);
+ 489              		.loc 1 298 5 is_stmt 1 view .LVU128
+ 298:application/chassis/balance_chassis.c ****     foot_r_tor = int_constrain(foot_r_tor, -16000, 16000);
+ 490              		.loc 1 298 18 is_stmt 0 view .LVU129
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 17
+
+
+ 491 012c 234E     		ldr	r6, .L19+68
+ 492 012e D5ED007A 		vldr.32	s15, [r5]
+ 493 0132 4FF47A52 		mov	r2, #16000
+ 494 0136 3146     		mov	r1, r6
+ 495 0138 FDEEE77A 		vcvt.s32.f32	s15, s15
+ 496 013c 17EE900A 		vmov	r0, s15	@ int
+ 497 0140 FFF7FEFF 		bl	int_constrain
+ 498              	.LVL21:
+ 499 0144 07EE900A 		vmov	s15, r0	@ int
+ 298:application/chassis/balance_chassis.c ****     foot_r_tor = int_constrain(foot_r_tor, -16000, 16000);
+ 500              		.loc 1 298 16 discriminator 1 view .LVU130
+ 501 0148 F8EEE77A 		vcvt.f32.s32	s15, s15
+ 502 014c C5ED007A 		vstr.32	s15, [r5]
+ 299:application/chassis/balance_chassis.c ****  }
+ 503              		.loc 1 299 5 is_stmt 1 view .LVU131
+ 299:application/chassis/balance_chassis.c ****  }
+ 504              		.loc 1 299 18 is_stmt 0 view .LVU132
+ 505 0150 D4ED007A 		vldr.32	s15, [r4]
+ 506 0154 4FF47A52 		mov	r2, #16000
+ 507 0158 3146     		mov	r1, r6
+ 508 015a FDEEE77A 		vcvt.s32.f32	s15, s15
+ 509 015e 17EE900A 		vmov	r0, s15	@ int
+ 510 0162 FFF7FEFF 		bl	int_constrain
+ 511              	.LVL22:
+ 512 0166 07EE900A 		vmov	s15, r0	@ int
+ 299:application/chassis/balance_chassis.c ****  }
+ 513              		.loc 1 299 16 discriminator 1 view .LVU133
+ 514 016a F8EEE77A 		vcvt.f32.s32	s15, s15
+ 515 016e C4ED007A 		vstr.32	s15, [r4]
+ 300:application/chassis/balance_chassis.c **** 
+ 516              		.loc 1 300 2 view .LVU134
+ 517 0172 BDE8F883 		pop	{r3, r4, r5, r6, r7, r8, r9, pc}
+ 518              	.L20:
+ 519 0176 00BF     		.align	2
+ 520              	.L19:
+ 521 0178 00000000 		.word	vmc_l
+ 522 017c 00000000 		.word	len_l
+ 523 0180 00000000 		.word	l_leg_PID
+ 524 0184 00000000 		.word	j_stand_torque_l
+ 525 0188 00000000 		.word	vmc_r
+ 526 018c 00000000 		.word	len_r
+ 527 0190 00000000 		.word	r_leg_PID
+ 528 0194 00000000 		.word	j_stand_torque_r
+ 529 0198 00000000 		.word	lqr_l
+ 530 019c 00000000 		.word	j_force_torque_l
+ 531 01a0 00000000 		.word	lqr_r
+ 532 01a4 00000000 		.word	j_force_torque_r
+ 533 01a8 00000000 		.word	joint_rb_tor
+ 534 01ac 00000000 		.word	joint_rf_tor
+ 535 01b0 AF6F5145 		.word	1162964911
+ 536 01b4 00000000 		.word	foot_l_tor
+ 537 01b8 00000000 		.word	foot_r_tor
+ 538 01bc 80C1FFFF 		.word	-16000
+ 539 01c0 00000000 		.word	joint_lb_tor
+ 540 01c4 00000000 		.word	joint_lf_tor
+ 541              		.cfi_endproc
+ 542              	.LFE278:
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 18
+
+
+ 544              		.section	.rodata.BalanceChassisInit.str1.4,"aMS",%progbits,1
+ 545              		.align	2
+ 546              	.LC5:
+ 547 0000 63686173 		.ascii	"chassis_cmd\000"
+ 547      7369735F 
+ 547      636D6400 
+ 548              		.align	2
+ 549              	.LC6:
+ 550 000c 63686173 		.ascii	"chassis_feed\000"
+ 550      7369735F 
+ 550      66656564 
+ 550      00
+ 551              		.section	.text.BalanceChassisInit,"ax",%progbits
+ 552              		.align	1
+ 553              		.global	BalanceChassisInit
+ 554              		.syntax unified
+ 555              		.thumb
+ 556              		.thumb_func
+ 558              	BalanceChassisInit:
+ 559              	.LFB276:
+ 111:application/chassis/balance_chassis.c ****     //  static float half_wheel_base, half_track_width, perimeter_wheel;    // 半轴距,半轮距,
+ 560              		.loc 1 111 2 is_stmt 1 view -0
+ 561              		.cfi_startproc
+ 562              		@ args = 0, pretend = 0, frame = 168
+ 563              		@ frame_needed = 0, uses_anonymous_args = 0
+ 564 0000 2DE9F047 		push	{r4, r5, r6, r7, r8, r9, r10, lr}
+ 565              	.LCFI8:
+ 566              		.cfi_def_cfa_offset 32
+ 567              		.cfi_offset 4, -32
+ 568              		.cfi_offset 5, -28
+ 569              		.cfi_offset 6, -24
+ 570              		.cfi_offset 7, -20
+ 571              		.cfi_offset 8, -16
+ 572              		.cfi_offset 9, -12
+ 573              		.cfi_offset 10, -8
+ 574              		.cfi_offset 14, -4
+ 575 0004 2DED048B 		vpush.64	{d8, d9}
+ 576              	.LCFI9:
+ 577              		.cfi_def_cfa_offset 48
+ 578              		.cfi_offset 80, -48
+ 579              		.cfi_offset 81, -44
+ 580              		.cfi_offset 82, -40
+ 581              		.cfi_offset 83, -36
+ 582 0008 AAB0     		sub	sp, sp, #168
+ 583              	.LCFI10:
+ 584              		.cfi_def_cfa_offset 216
+ 116:application/chassis/balance_chassis.c **** 
+ 585              		.loc 1 116 5 view .LVU136
+ 116:application/chassis/balance_chassis.c **** 
+ 586              		.loc 1 116 22 is_stmt 0 view .LVU137
+ 587 000a FFF7FEFF 		bl	ChassisConfigFeed
+ 588              	.LVL23:
+ 116:application/chassis/balance_chassis.c **** 
+ 589              		.loc 1 116 20 discriminator 1 view .LVU138
+ 590 000e 874C     		ldr	r4, .L23
+ 591 0010 2060     		str	r0, [r4]
+ 118:application/chassis/balance_chassis.c ****     foot_motor_lf = DJIMotorInit(&chassis_config->chassis_motor_config);    
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 19
+
+
+ 592              		.loc 1 118 5 is_stmt 1 view .LVU139
+ 118:application/chassis/balance_chassis.c ****     foot_motor_lf = DJIMotorInit(&chassis_config->chassis_motor_config);    
+ 593              		.loc 1 118 98 is_stmt 0 view .LVU140
+ 594 0012 90F80831 		ldrb	r3, [r0, #264]	@ zero_extendqisi2
+ 118:application/chassis/balance_chassis.c ****     foot_motor_lf = DJIMotorInit(&chassis_config->chassis_motor_config);    
+ 595              		.loc 1 118 64 view .LVU141
+ 596 0016 C0F8C030 		str	r3, [r0, #192]
+ 119:application/chassis/balance_chassis.c **** 
+ 597              		.loc 1 119 5 is_stmt 1 view .LVU142
+ 119:application/chassis/balance_chassis.c **** 
+ 598              		.loc 1 119 21 is_stmt 0 view .LVU143
+ 599 001a 1C30     		adds	r0, r0, #28
+ 600 001c FFF7FEFF 		bl	DJIMotorInit
+ 601              	.LVL24:
+ 119:application/chassis/balance_chassis.c **** 
+ 602              		.loc 1 119 19 discriminator 1 view .LVU144
+ 603 0020 834B     		ldr	r3, .L23+4
+ 604 0022 1860     		str	r0, [r3]
+ 121:application/chassis/balance_chassis.c ****     foot_motor_rf = DJIMotorInit(&chassis_config->chassis_motor_config);    
+ 605              		.loc 1 121 5 is_stmt 1 view .LVU145
+ 121:application/chassis/balance_chassis.c ****     foot_motor_rf = DJIMotorInit(&chassis_config->chassis_motor_config);    
+ 606              		.loc 1 121 80 is_stmt 0 view .LVU146
+ 607 0024 2068     		ldr	r0, [r4]
+ 121:application/chassis/balance_chassis.c ****     foot_motor_rf = DJIMotorInit(&chassis_config->chassis_motor_config);    
+ 608              		.loc 1 121 98 view .LVU147
+ 609 0026 90F80931 		ldrb	r3, [r0, #265]	@ zero_extendqisi2
+ 121:application/chassis/balance_chassis.c ****     foot_motor_rf = DJIMotorInit(&chassis_config->chassis_motor_config);    
+ 610              		.loc 1 121 64 view .LVU148
+ 611 002a C0F8C030 		str	r3, [r0, #192]
+ 122:application/chassis/balance_chassis.c **** 
+ 612              		.loc 1 122 5 is_stmt 1 view .LVU149
+ 122:application/chassis/balance_chassis.c **** 
+ 613              		.loc 1 122 21 is_stmt 0 view .LVU150
+ 614 002e 1C30     		adds	r0, r0, #28
+ 615 0030 FFF7FEFF 		bl	DJIMotorInit
+ 616              	.LVL25:
+ 122:application/chassis/balance_chassis.c **** 
+ 617              		.loc 1 122 19 discriminator 1 view .LVU151
+ 618 0034 7F4B     		ldr	r3, .L23+8
+ 619 0036 1860     		str	r0, [r3]
+ 124:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 1;
+ 620              		.loc 1 124 5 is_stmt 1 view .LVU152
+ 124:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 1;
+ 621              		.loc 1 124 80 is_stmt 0 view .LVU153
+ 622 0038 2068     		ldr	r0, [r4]
+ 124:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 1;
+ 623              		.loc 1 124 98 view .LVU154
+ 624 003a 90F80431 		ldrb	r3, [r0, #260]	@ zero_extendqisi2
+ 124:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 1;
+ 625              		.loc 1 124 64 view .LVU155
+ 626 003e C0F8C030 		str	r3, [r0, #192]
+ 125:application/chassis/balance_chassis.c ****     motor_lf = DMMotorInit(&chassis_config->chassis_motor_config);    
+ 627              		.loc 1 125 5 is_stmt 1 view .LVU156
+ 125:application/chassis/balance_chassis.c ****     motor_lf = DMMotorInit(&chassis_config->chassis_motor_config);    
+ 628              		.loc 1 125 64 is_stmt 0 view .LVU157
+ 629 0042 0123     		movs	r3, #1
+ 630 0044 C0F8C430 		str	r3, [r0, #196]
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 20
+
+
+ 126:application/chassis/balance_chassis.c **** 
+ 631              		.loc 1 126 5 is_stmt 1 view .LVU158
+ 126:application/chassis/balance_chassis.c **** 
+ 632              		.loc 1 126 16 is_stmt 0 view .LVU159
+ 633 0048 1C30     		adds	r0, r0, #28
+ 634 004a FFF7FEFF 		bl	DMMotorInit
+ 635              	.LVL26:
+ 126:application/chassis/balance_chassis.c **** 
+ 636              		.loc 1 126 14 discriminator 1 view .LVU160
+ 637 004e 7A4B     		ldr	r3, .L23+12
+ 638 0050 1860     		str	r0, [r3]
+ 128:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 2;
+ 639              		.loc 1 128 5 is_stmt 1 view .LVU161
+ 128:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 2;
+ 640              		.loc 1 128 80 is_stmt 0 view .LVU162
+ 641 0052 2068     		ldr	r0, [r4]
+ 128:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 2;
+ 642              		.loc 1 128 98 view .LVU163
+ 643 0054 90F80531 		ldrb	r3, [r0, #261]	@ zero_extendqisi2
+ 128:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 2;
+ 644              		.loc 1 128 64 view .LVU164
+ 645 0058 C0F8C030 		str	r3, [r0, #192]
+ 129:application/chassis/balance_chassis.c ****     motor_rf = DMMotorInit(&chassis_config->chassis_motor_config);    
+ 646              		.loc 1 129 5 is_stmt 1 view .LVU165
+ 129:application/chassis/balance_chassis.c ****     motor_rf = DMMotorInit(&chassis_config->chassis_motor_config);    
+ 647              		.loc 1 129 64 is_stmt 0 view .LVU166
+ 648 005c 0225     		movs	r5, #2
+ 649 005e C0F8C450 		str	r5, [r0, #196]
+ 130:application/chassis/balance_chassis.c **** 
+ 650              		.loc 1 130 5 is_stmt 1 view .LVU167
+ 130:application/chassis/balance_chassis.c **** 
+ 651              		.loc 1 130 16 is_stmt 0 view .LVU168
+ 652 0062 1C30     		adds	r0, r0, #28
+ 653 0064 FFF7FEFF 		bl	DMMotorInit
+ 654              	.LVL27:
+ 130:application/chassis/balance_chassis.c **** 
+ 655              		.loc 1 130 14 discriminator 1 view .LVU169
+ 656 0068 744B     		ldr	r3, .L23+16
+ 657 006a 1860     		str	r0, [r3]
+ 132:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 3;
+ 658              		.loc 1 132 5 is_stmt 1 view .LVU170
+ 132:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 3;
+ 659              		.loc 1 132 80 is_stmt 0 view .LVU171
+ 660 006c 2068     		ldr	r0, [r4]
+ 132:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 3;
+ 661              		.loc 1 132 98 view .LVU172
+ 662 006e 90F80731 		ldrb	r3, [r0, #263]	@ zero_extendqisi2
+ 132:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 3;
+ 663              		.loc 1 132 64 view .LVU173
+ 664 0072 C0F8C030 		str	r3, [r0, #192]
+ 133:application/chassis/balance_chassis.c ****     motor_rb = DMMotorInit(&chassis_config->chassis_motor_config);    
+ 665              		.loc 1 133 5 is_stmt 1 view .LVU174
+ 133:application/chassis/balance_chassis.c ****     motor_rb = DMMotorInit(&chassis_config->chassis_motor_config);    
+ 666              		.loc 1 133 64 is_stmt 0 view .LVU175
+ 667 0076 0323     		movs	r3, #3
+ 668 0078 C0F8C430 		str	r3, [r0, #196]
+ 134:application/chassis/balance_chassis.c **** 
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 21
+
+
+ 669              		.loc 1 134 5 is_stmt 1 view .LVU176
+ 134:application/chassis/balance_chassis.c **** 
+ 670              		.loc 1 134 16 is_stmt 0 view .LVU177
+ 671 007c 1C30     		adds	r0, r0, #28
+ 672 007e FFF7FEFF 		bl	DMMotorInit
+ 673              	.LVL28:
+ 134:application/chassis/balance_chassis.c **** 
+ 674              		.loc 1 134 14 discriminator 1 view .LVU178
+ 675 0082 6F4B     		ldr	r3, .L23+20
+ 676 0084 1860     		str	r0, [r3]
+ 136:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 4;
+ 677              		.loc 1 136 5 is_stmt 1 view .LVU179
+ 136:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 4;
+ 678              		.loc 1 136 80 is_stmt 0 view .LVU180
+ 679 0086 2068     		ldr	r0, [r4]
+ 136:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 4;
+ 680              		.loc 1 136 98 view .LVU181
+ 681 0088 90F80631 		ldrb	r3, [r0, #262]	@ zero_extendqisi2
+ 136:application/chassis/balance_chassis.c ****     chassis_config->chassis_motor_config.can_init_config.rx_id = 4;
+ 682              		.loc 1 136 64 view .LVU182
+ 683 008c C0F8C030 		str	r3, [r0, #192]
+ 137:application/chassis/balance_chassis.c ****     motor_lb = DMMotorInit(&chassis_config->chassis_motor_config);    
+ 684              		.loc 1 137 5 is_stmt 1 view .LVU183
+ 137:application/chassis/balance_chassis.c ****     motor_lb = DMMotorInit(&chassis_config->chassis_motor_config);    
+ 685              		.loc 1 137 64 is_stmt 0 view .LVU184
+ 686 0090 0423     		movs	r3, #4
+ 687 0092 C0F8C430 		str	r3, [r0, #196]
+ 138:application/chassis/balance_chassis.c **** 
+ 688              		.loc 1 138 5 is_stmt 1 view .LVU185
+ 138:application/chassis/balance_chassis.c **** 
+ 689              		.loc 1 138 16 is_stmt 0 view .LVU186
+ 690 0096 1C30     		adds	r0, r0, #28
+ 691 0098 FFF7FEFF 		bl	DMMotorInit
+ 692              	.LVL29:
+ 138:application/chassis/balance_chassis.c **** 
+ 693              		.loc 1 138 14 discriminator 1 view .LVU187
+ 694 009c 694B     		ldr	r3, .L23+24
+ 695 009e 1860     		str	r0, [r3]
+ 141:application/chassis/balance_chassis.c ****         .Kp = 200.0f,
+ 696              		.loc 1 141 5 is_stmt 1 view .LVU188
+ 141:application/chassis/balance_chassis.c ****         .Kp = 200.0f,
+ 697              		.loc 1 141 23 is_stmt 0 view .LVU189
+ 698 00a0 4FF02C0A 		mov	r10, #44
+ 699 00a4 5246     		mov	r2, r10
+ 700 00a6 0021     		movs	r1, #0
+ 701 00a8 1FA8     		add	r0, sp, #124
+ 702 00aa FFF7FEFF 		bl	memset
+ 703              	.LVL30:
+ 704 00ae DFED668A 		vldr.32	s17, .L23+28
+ 705 00b2 CDED1F8A 		vstr.32	s17, [sp, #124]
+ 706 00b6 9FED658A 		vldr.32	s16, .L23+32
+ 707 00ba 8DED218A 		vstr.32	s16, [sp, #132]
+ 708 00be 644B     		ldr	r3, .L23+36
+ 709 00c0 2293     		str	r3, [sp, #136]	@ float
+ 710 00c2 DFF8E091 		ldr	r9, .L23+120
+ 711 00c6 CDF88C90 		str	r9, [sp, #140]	@ float
+ 712 00ca 4FF06608 		mov	r8, #102
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 22
+
+
+ 713 00ce 8DF89080 		strb	r8, [sp, #144]
+ 714 00d2 604F     		ldr	r7, .L23+40
+ 715 00d4 2797     		str	r7, [sp, #156]	@ float
+ 716 00d6 604E     		ldr	r6, .L23+44
+ 717 00d8 2896     		str	r6, [sp, #160]	@ float
+ 718 00da 604C     		ldr	r4, .L23+48
+ 719 00dc 2994     		str	r4, [sp, #164]	@ float
+ 156:application/chassis/balance_chassis.c ****         .Kp = 200.0f,
+ 720              		.loc 1 156 5 is_stmt 1 view .LVU190
+ 156:application/chassis/balance_chassis.c ****         .Kp = 200.0f,
+ 721              		.loc 1 156 23 is_stmt 0 view .LVU191
+ 722 00de 5246     		mov	r2, r10
+ 723 00e0 0021     		movs	r1, #0
+ 724 00e2 14A8     		add	r0, sp, #80
+ 725 00e4 FFF7FEFF 		bl	memset
+ 726              	.LVL31:
+ 727 00e8 CDED148A 		vstr.32	s17, [sp, #80]
+ 728 00ec 8DED168A 		vstr.32	s16, [sp, #88]
+ 729 00f0 5B4B     		ldr	r3, .L23+52
+ 730 00f2 1793     		str	r3, [sp, #92]	@ float
+ 731 00f4 CDF86090 		str	r9, [sp, #96]	@ float
+ 732 00f8 8DF86480 		strb	r8, [sp, #100]
+ 733 00fc 1C97     		str	r7, [sp, #112]	@ float
+ 734 00fe 1D96     		str	r6, [sp, #116]	@ float
+ 735 0100 1E94     		str	r4, [sp, #120]	@ float
+ 171:application/chassis/balance_chassis.c ****     PIDInit(&r_leg_PID, &r_config_PID);
+ 736              		.loc 1 171 5 is_stmt 1 view .LVU192
+ 737 0102 1FA9     		add	r1, sp, #124
+ 738 0104 5748     		ldr	r0, .L23+56
+ 739 0106 FFF7FEFF 		bl	PIDInit
+ 740              	.LVL32:
+ 172:application/chassis/balance_chassis.c **** 
+ 741              		.loc 1 172 5 view .LVU193
+ 742 010a 14A9     		add	r1, sp, #80
+ 743 010c 5648     		ldr	r0, .L23+60
+ 744 010e FFF7FEFF 		bl	PIDInit
+ 745              	.LVL33:
+ 175:application/chassis/balance_chassis.c ****     float F[4] = {1, 0.001, 0, 1};
+ 746              		.loc 1 175 5 view .LVU194
+ 747 0112 564E     		ldr	r6, .L23+64
+ 748 0114 2B46     		mov	r3, r5
+ 749 0116 0022     		movs	r2, #0
+ 750 0118 2946     		mov	r1, r5
+ 751 011a 3046     		mov	r0, r6
+ 752 011c FFF7FEFF 		bl	Kalman_Filter_Init
+ 753              	.LVL34:
+ 176:application/chassis/balance_chassis.c ****     float Q[4] = {VEL_PROCESS_NOISE, 0, 0, ACC_MEASURE_NOISE};
+ 754              		.loc 1 176 5 view .LVU195
+ 176:application/chassis/balance_chassis.c ****     float Q[4] = {VEL_PROCESS_NOISE, 0, 0, ACC_MEASURE_NOISE};
+ 755              		.loc 1 176 11 is_stmt 0 view .LVU196
+ 756 0120 534C     		ldr	r4, .L23+68
+ 757 0122 0DF14008 		add	r8, sp, #64
+ 758 0126 94E80F00 		ldm	r4, {r0, r1, r2, r3}
+ 759 012a 88E80F00 		stm	r8, {r0, r1, r2, r3}
+ 177:application/chassis/balance_chassis.c ****     float R[4] = {VEL_MEASURE_NOISE, 0, 0, ACC_MEASURE_NOISE};
+ 760              		.loc 1 177 5 is_stmt 1 view .LVU197
+ 177:application/chassis/balance_chassis.c ****     float R[4] = {VEL_MEASURE_NOISE, 0, 0, ACC_MEASURE_NOISE};
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 23
+
+
+ 761              		.loc 1 177 11 is_stmt 0 view .LVU198
+ 762 012e 0CAF     		add	r7, sp, #48
+ 763 0130 04F11003 		add	r3, r4, #16
+ 764 0134 0FCB     		ldm	r3, {r0, r1, r2, r3}
+ 765 0136 87E80F00 		stm	r7, {r0, r1, r2, r3}
+ 178:application/chassis/balance_chassis.c ****     float P[4] = {100000, 0, 0, 100000};
+ 766              		.loc 1 178 5 is_stmt 1 view .LVU199
+ 178:application/chassis/balance_chassis.c ****     float P[4] = {100000, 0, 0, 100000};
+ 767              		.loc 1 178 11 is_stmt 0 view .LVU200
+ 768 013a 08AD     		add	r5, sp, #32
+ 769 013c 04F12003 		add	r3, r4, #32
+ 770 0140 0FCB     		ldm	r3, {r0, r1, r2, r3}
+ 771 0142 85E80F00 		stm	r5, {r0, r1, r2, r3}
+ 179:application/chassis/balance_chassis.c ****     float H[4] = {1, 0, 0, 1};
+ 772              		.loc 1 179 5 is_stmt 1 view .LVU201
+ 179:application/chassis/balance_chassis.c ****     float H[4] = {1, 0, 0, 1};
+ 773              		.loc 1 179 11 is_stmt 0 view .LVU202
+ 774 0146 0DF1100E 		add	lr, sp, #16
+ 775 014a 04F13003 		add	r3, r4, #48
+ 776 014e 0FCB     		ldm	r3, {r0, r1, r2, r3}
+ 777 0150 8EE80F00 		stm	lr, {r0, r1, r2, r3}
+ 180:application/chassis/balance_chassis.c ****     memcpy(kf.F_data, F, sizeof(F));
+ 778              		.loc 1 180 5 is_stmt 1 view .LVU203
+ 180:application/chassis/balance_chassis.c ****     memcpy(kf.F_data, F, sizeof(F));
+ 779              		.loc 1 180 11 is_stmt 0 view .LVU204
+ 780 0154 EC46     		mov	ip, sp
+ 781 0156 4034     		adds	r4, r4, #64
+ 782 0158 94E80F00 		ldm	r4, {r0, r1, r2, r3}
+ 783 015c 8CE80F00 		stm	ip, {r0, r1, r2, r3}
+ 181:application/chassis/balance_chassis.c ****     memcpy(kf.Q_data, Q, sizeof(Q));
+ 784              		.loc 1 181 5 is_stmt 1 view .LVU205
+ 181:application/chassis/balance_chassis.c ****     memcpy(kf.Q_data, Q, sizeof(Q));
+ 785              		.loc 1 181 14 is_stmt 0 view .LVU206
+ 786 0160 D6F80091 		ldr	r9, [r6, #256]
+ 181:application/chassis/balance_chassis.c ****     memcpy(kf.Q_data, Q, sizeof(Q));
+ 787              		.loc 1 181 5 view .LVU207
+ 788 0164 4446     		mov	r4, r8
+ 789 0166 0FCC     		ldmia	r4!, {r0, r1, r2, r3}
+ 790 0168 C9F80000 		str	r0, [r9]	@ unaligned
+ 791 016c C9F80410 		str	r1, [r9, #4]	@ unaligned
+ 792 0170 C9F80820 		str	r2, [r9, #8]	@ unaligned
+ 793 0174 C9F80C30 		str	r3, [r9, #12]	@ unaligned
+ 182:application/chassis/balance_chassis.c ****     memcpy(kf.R_data, R, sizeof(R));
+ 794              		.loc 1 182 5 is_stmt 1 view .LVU208
+ 182:application/chassis/balance_chassis.c ****     memcpy(kf.R_data, R, sizeof(R));
+ 795              		.loc 1 182 14 is_stmt 0 view .LVU209
+ 796 0178 D6F81481 		ldr	r8, [r6, #276]
+ 182:application/chassis/balance_chassis.c ****     memcpy(kf.R_data, R, sizeof(R));
+ 797              		.loc 1 182 5 view .LVU210
+ 798 017c 3C46     		mov	r4, r7
+ 799 017e 0FCC     		ldmia	r4!, {r0, r1, r2, r3}
+ 800 0180 C8F80000 		str	r0, [r8]	@ unaligned
+ 801 0184 C8F80410 		str	r1, [r8, #4]	@ unaligned
+ 802 0188 C8F80820 		str	r2, [r8, #8]	@ unaligned
+ 803 018c C8F80C30 		str	r3, [r8, #12]	@ unaligned
+ 183:application/chassis/balance_chassis.c ****     memcpy(kf.P_data, P, sizeof(P));
+ 804              		.loc 1 183 5 is_stmt 1 view .LVU211
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 24
+
+
+ 183:application/chassis/balance_chassis.c ****     memcpy(kf.P_data, P, sizeof(P));
+ 805              		.loc 1 183 14 is_stmt 0 view .LVU212
+ 806 0190 D6F81871 		ldr	r7, [r6, #280]
+ 183:application/chassis/balance_chassis.c ****     memcpy(kf.P_data, P, sizeof(P));
+ 807              		.loc 1 183 5 view .LVU213
+ 808 0194 2C46     		mov	r4, r5
+ 809 0196 0FCC     		ldmia	r4!, {r0, r1, r2, r3}
+ 810 0198 3860     		str	r0, [r7]	@ unaligned
+ 811 019a 7960     		str	r1, [r7, #4]	@ unaligned
+ 812 019c BA60     		str	r2, [r7, #8]	@ unaligned
+ 813 019e FB60     		str	r3, [r7, #12]	@ unaligned
+ 184:application/chassis/balance_chassis.c ****     memcpy(kf.H_data, H, sizeof(H));
+ 814              		.loc 1 184 5 is_stmt 1 view .LVU214
+ 184:application/chassis/balance_chassis.c ****     memcpy(kf.H_data, H, sizeof(H));
+ 815              		.loc 1 184 14 is_stmt 0 view .LVU215
+ 816 01a0 D6F8F850 		ldr	r5, [r6, #248]
+ 184:application/chassis/balance_chassis.c ****     memcpy(kf.H_data, H, sizeof(H));
+ 817              		.loc 1 184 5 view .LVU216
+ 818 01a4 7446     		mov	r4, lr
+ 819 01a6 0FCC     		ldmia	r4!, {r0, r1, r2, r3}
+ 820 01a8 2860     		str	r0, [r5]	@ unaligned
+ 821 01aa 6960     		str	r1, [r5, #4]	@ unaligned
+ 822 01ac AA60     		str	r2, [r5, #8]	@ unaligned
+ 823 01ae EB60     		str	r3, [r5, #12]	@ unaligned
+ 185:application/chassis/balance_chassis.c **** 
+ 824              		.loc 1 185 5 is_stmt 1 view .LVU217
+ 185:application/chassis/balance_chassis.c **** 
+ 825              		.loc 1 185 14 is_stmt 0 view .LVU218
+ 826 01b0 D6F80C51 		ldr	r5, [r6, #268]
+ 185:application/chassis/balance_chassis.c **** 
+ 827              		.loc 1 185 5 view .LVU219
+ 828 01b4 6446     		mov	r4, ip
+ 829 01b6 0FCC     		ldmia	r4!, {r0, r1, r2, r3}
+ 830 01b8 2860     		str	r0, [r5]	@ unaligned
+ 831 01ba 6960     		str	r1, [r5, #4]	@ unaligned
+ 832 01bc AA60     		str	r2, [r5, #8]	@ unaligned
+ 833 01be EB60     		str	r3, [r5, #12]	@ unaligned
+ 187:application/chassis/balance_chassis.c ****     VMC_Init(&vmc_r, 0.15, 0.27, 0.15, TASK_CONTROL_PERIOD);
+ 834              		.loc 1 187 5 is_stmt 1 view .LVU220
+ 835 01c0 9FED2C9A 		vldr.32	s18, .L23+72
+ 836 01c4 9FED2C8A 		vldr.32	s16, .L23+76
+ 837 01c8 DFED2C8A 		vldr.32	s17, .L23+80
+ 838 01cc F0EE491A 		vmov.f32	s3, s18
+ 839 01d0 B0EE481A 		vmov.f32	s2, s16
+ 840 01d4 F0EE680A 		vmov.f32	s1, s17
+ 841 01d8 B0EE480A 		vmov.f32	s0, s16
+ 842 01dc 2848     		ldr	r0, .L23+84
+ 843 01de FFF7FEFF 		bl	VMC_Init
+ 844              	.LVL35:
+ 188:application/chassis/balance_chassis.c **** 
+ 845              		.loc 1 188 5 view .LVU221
+ 846 01e2 F0EE491A 		vmov.f32	s3, s18
+ 847 01e6 B0EE481A 		vmov.f32	s2, s16
+ 848 01ea F0EE680A 		vmov.f32	s1, s17
+ 849 01ee B0EE480A 		vmov.f32	s0, s16
+ 850 01f2 2448     		ldr	r0, .L23+88
+ 851 01f4 FFF7FEFF 		bl	VMC_Init
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 25
+
+
+ 852              	.LVL36:
+ 190:application/chassis/balance_chassis.c ****     LQR_Init(&lqr_r, k);
+ 853              		.loc 1 190 5 view .LVU222
+ 854 01f8 234C     		ldr	r4, .L23+92
+ 855 01fa 2146     		mov	r1, r4
+ 856 01fc 2348     		ldr	r0, .L23+96
+ 857 01fe FFF7FEFF 		bl	LQR_Init
+ 858              	.LVL37:
+ 191:application/chassis/balance_chassis.c **** 
+ 859              		.loc 1 191 5 view .LVU223
+ 860 0202 2146     		mov	r1, r4
+ 861 0204 2248     		ldr	r0, .L23+100
+ 862 0206 FFF7FEFF 		bl	LQR_Init
+ 863              	.LVL38:
+ 210:application/chassis/balance_chassis.c ****      chassis_pub = PubRegister("chassis_feed", sizeof(Chassis_Upload_Data_s));
+ 864              		.loc 1 210 6 view .LVU224
+ 210:application/chassis/balance_chassis.c ****      chassis_pub = PubRegister("chassis_feed", sizeof(Chassis_Upload_Data_s));
+ 865              		.loc 1 210 20 is_stmt 0 view .LVU225
+ 866 020a 3521     		movs	r1, #53
+ 867 020c 2148     		ldr	r0, .L23+104
+ 868 020e FFF7FEFF 		bl	SubRegister
+ 869              	.LVL39:
+ 210:application/chassis/balance_chassis.c ****      chassis_pub = PubRegister("chassis_feed", sizeof(Chassis_Upload_Data_s));
+ 870              		.loc 1 210 18 discriminator 1 view .LVU226
+ 871 0212 214B     		ldr	r3, .L23+108
+ 872 0214 1860     		str	r0, [r3]
+ 211:application/chassis/balance_chassis.c ****  #endif // ONE_BOARD
+ 873              		.loc 1 211 6 is_stmt 1 view .LVU227
+ 211:application/chassis/balance_chassis.c ****  #endif // ONE_BOARD
+ 874              		.loc 1 211 20 is_stmt 0 view .LVU228
+ 875 0216 0E21     		movs	r1, #14
+ 876 0218 2048     		ldr	r0, .L23+112
+ 877 021a FFF7FEFF 		bl	PubRegister
+ 878              	.LVL40:
+ 211:application/chassis/balance_chassis.c ****  #endif // ONE_BOARD
+ 879              		.loc 1 211 18 discriminator 1 view .LVU229
+ 880 021e 204B     		ldr	r3, .L23+116
+ 881 0220 1860     		str	r0, [r3]
+ 213:application/chassis/balance_chassis.c **** 
+ 882              		.loc 1 213 2 view .LVU230
+ 883 0222 2AB0     		add	sp, sp, #168
+ 884              	.LCFI11:
+ 885              		.cfi_def_cfa_offset 48
+ 886              		@ sp needed
+ 887 0224 BDEC048B 		vldm	sp!, {d8-d9}
+ 888              	.LCFI12:
+ 889              		.cfi_restore 82
+ 890              		.cfi_restore 83
+ 891              		.cfi_restore 80
+ 892              		.cfi_restore 81
+ 893              		.cfi_def_cfa_offset 32
+ 894 0228 BDE8F087 		pop	{r4, r5, r6, r7, r8, r9, r10, pc}
+ 895              	.L24:
+ 896              		.align	2
+ 897              	.L23:
+ 898 022c 00000000 		.word	chassis_config
+ 899 0230 00000000 		.word	foot_motor_lf
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 26
+
+
+ 900 0234 00000000 		.word	foot_motor_rf
+ 901 0238 00000000 		.word	motor_lf
+ 902 023c 00000000 		.word	motor_rf
+ 903 0240 00000000 		.word	motor_rb
+ 904 0244 00000000 		.word	motor_lb
+ 905 0248 00004843 		.word	1128792064
+ 906 024c 00003442 		.word	1110704128
+ 907 0250 00002041 		.word	1092616192
+ 908 0254 0AD7233C 		.word	1008981770
+ 909 0258 0AD7A33C 		.word	1017370378
+ 910 025c 0AD7A33D 		.word	1034147594
+ 911 0260 0000F041 		.word	1106247680
+ 912 0264 00000000 		.word	l_leg_PID
+ 913 0268 00000000 		.word	r_leg_PID
+ 914 026c 00000000 		.word	kf
+ 915 0270 00000000 		.word	.LANCHOR0
+ 916 0274 6F12833A 		.word	981668463
+ 917 0278 9A99193E 		.word	1041865114
+ 918 027c 713D8A3E 		.word	1049247089
+ 919 0280 00000000 		.word	vmc_l
+ 920 0284 00000000 		.word	vmc_r
+ 921 0288 00000000 		.word	k
+ 922 028c 00000000 		.word	lqr_l
+ 923 0290 00000000 		.word	lqr_r
+ 924 0294 00000000 		.word	.LC5
+ 925 0298 00000000 		.word	chassis_sub
+ 926 029c 0C000000 		.word	.LC6
+ 927 02a0 00000000 		.word	chassis_pub
+ 928 02a4 17B7D138 		.word	953267991
+ 929              		.cfi_endproc
+ 930              	.LFE276:
+ 932              		.section	.text.BalanceChassisTask,"ax",%progbits
+ 933              		.align	1
+ 934              		.global	BalanceChassisTask
+ 935              		.syntax unified
+ 936              		.thumb
+ 937              		.thumb_func
+ 939              	BalanceChassisTask:
+ 940              	.LFB280:
+ 339:application/chassis/balance_chassis.c **** 
+ 340:application/chassis/balance_chassis.c ****  #define JOINT_ANGLE_OFFSET   3.14f
+ 341:application/chassis/balance_chassis.c **** //  #define JOINT_ANGLE_OFFSET   0.0f
+ 342:application/chassis/balance_chassis.c ****  /* 机器人底盘控制核心任务 */
+ 343:application/chassis/balance_chassis.c ****  void BalanceChassisTask()
+ 344:application/chassis/balance_chassis.c ****  {
+ 941              		.loc 1 344 2 is_stmt 1 view -0
+ 942              		.cfi_startproc
+ 943              		@ args = 0, pretend = 0, frame = 0
+ 944              		@ frame_needed = 0, uses_anonymous_args = 0
+ 945 0000 2DE9F047 		push	{r4, r5, r6, r7, r8, r9, r10, lr}
+ 946              	.LCFI13:
+ 947              		.cfi_def_cfa_offset 32
+ 948              		.cfi_offset 4, -32
+ 949              		.cfi_offset 5, -28
+ 950              		.cfi_offset 6, -24
+ 951              		.cfi_offset 7, -20
+ 952              		.cfi_offset 8, -16
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 27
+
+
+ 953              		.cfi_offset 9, -12
+ 954              		.cfi_offset 10, -8
+ 955              		.cfi_offset 14, -4
+ 956 0004 2DED028B 		vpush.64	{d8}
+ 957              	.LCFI14:
+ 958              		.cfi_def_cfa_offset 40
+ 959              		.cfi_offset 80, -40
+ 960              		.cfi_offset 81, -36
+ 345:application/chassis/balance_chassis.c ****      // 后续增加没收到消息的处理(双板的情况)
+ 346:application/chassis/balance_chassis.c ****      // 获取新的控制信息
+ 347:application/chassis/balance_chassis.c ****  #ifdef ONE_BOARD
+ 348:application/chassis/balance_chassis.c ****      SubGetMessage(chassis_sub, &chassis_cmd_recv);
+ 961              		.loc 1 348 6 view .LVU232
+ 962 0008 6D4C     		ldr	r4, .L29
+ 963 000a 2146     		mov	r1, r4
+ 964 000c 6D4B     		ldr	r3, .L29+4
+ 965 000e 1868     		ldr	r0, [r3]
+ 966 0010 FFF7FEFF 		bl	SubGetMessage
+ 967              	.LVL41:
+ 349:application/chassis/balance_chassis.c ****  #endif
+ 350:application/chassis/balance_chassis.c ****  #ifdef CHASSIS_BOARD
+ 351:application/chassis/balance_chassis.c ****      chassis_cmd_recv = *(Chassis_Ctrl_Cmd_s *)CANCommGet(chasiss_can_comm);
+ 352:application/chassis/balance_chassis.c ****  #endif // CHASSIS_BOARD
+ 353:application/chassis/balance_chassis.c **** 
+ 354:application/chassis/balance_chassis.c ****     DJIMotorChangeFeed(foot_motor_lf, OPEN_LOOP, MOTOR_FEED);
+ 968              		.loc 1 354 5 view .LVU233
+ 969 0014 0022     		movs	r2, #0
+ 970 0016 1146     		mov	r1, r2
+ 971 0018 6B4B     		ldr	r3, .L29+8
+ 972 001a 1868     		ldr	r0, [r3]
+ 973 001c FFF7FEFF 		bl	DJIMotorChangeFeed
+ 974              	.LVL42:
+ 355:application/chassis/balance_chassis.c ****     DJIMotorChangeFeed(foot_motor_rf, OPEN_LOOP, MOTOR_FEED);
+ 975              		.loc 1 355 5 view .LVU234
+ 976 0020 0022     		movs	r2, #0
+ 977 0022 1146     		mov	r1, r2
+ 978 0024 694B     		ldr	r3, .L29+12
+ 979 0026 1868     		ldr	r0, [r3]
+ 980 0028 FFF7FEFF 		bl	DJIMotorChangeFeed
+ 981              	.LVL43:
+ 356:application/chassis/balance_chassis.c **** 
+ 357:application/chassis/balance_chassis.c ****     if (chassis_cmd_recv.chassis_mode == CHASSIS_ZERO_FORCE)
+ 982              		.loc 1 357 5 view .LVU235
+ 983              		.loc 1 357 25 is_stmt 0 view .LVU236
+ 984 002c 237D     		ldrb	r3, [r4, #20]	@ zero_extendqisi2
+ 985              		.loc 1 357 8 view .LVU237
+ 986 002e 002B     		cmp	r3, #0
+ 987 0030 40F0AD80 		bne	.L26
+ 358:application/chassis/balance_chassis.c ****     { // 如果出现重要模块离线或遥控器设置为急停,让电机停止
+ 359:application/chassis/balance_chassis.c ****         DMMotorStop(motor_lf);
+ 988              		.loc 1 359 9 is_stmt 1 view .LVU238
+ 989 0034 664B     		ldr	r3, .L29+16
+ 990 0036 1868     		ldr	r0, [r3]
+ 991 0038 FFF7FEFF 		bl	DMMotorStop
+ 992              	.LVL44:
+ 360:application/chassis/balance_chassis.c ****         DMMotorStop(motor_lb);
+ 993              		.loc 1 360 9 view .LVU239
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 28
+
+
+ 994 003c 654B     		ldr	r3, .L29+20
+ 995 003e 1868     		ldr	r0, [r3]
+ 996 0040 FFF7FEFF 		bl	DMMotorStop
+ 997              	.LVL45:
+ 361:application/chassis/balance_chassis.c ****         DMMotorStop(motor_rf);
+ 998              		.loc 1 361 9 view .LVU240
+ 999 0044 644B     		ldr	r3, .L29+24
+ 1000 0046 1868     		ldr	r0, [r3]
+ 1001 0048 FFF7FEFF 		bl	DMMotorStop
+ 1002              	.LVL46:
+ 362:application/chassis/balance_chassis.c ****         DMMotorStop(motor_rb);
+ 1003              		.loc 1 362 9 view .LVU241
+ 1004 004c 634B     		ldr	r3, .L29+28
+ 1005 004e 1868     		ldr	r0, [r3]
+ 1006 0050 FFF7FEFF 		bl	DMMotorStop
+ 1007              	.LVL47:
+ 363:application/chassis/balance_chassis.c **** 
+ 364:application/chassis/balance_chassis.c ****         DJIMotorStop(foot_motor_lf);
+ 1008              		.loc 1 364 9 view .LVU242
+ 1009 0054 5C4B     		ldr	r3, .L29+8
+ 1010 0056 1868     		ldr	r0, [r3]
+ 1011 0058 FFF7FEFF 		bl	DJIMotorStop
+ 1012              	.LVL48:
+ 365:application/chassis/balance_chassis.c ****         DJIMotorStop(foot_motor_rf);
+ 1013              		.loc 1 365 9 view .LVU243
+ 1014 005c 5B4B     		ldr	r3, .L29+12
+ 1015 005e 1868     		ldr	r0, [r3]
+ 1016 0060 FFF7FEFF 		bl	DJIMotorStop
+ 1017              	.LVL49:
+ 1018              	.L27:
+ 366:application/chassis/balance_chassis.c ****     }
+ 367:application/chassis/balance_chassis.c ****     else
+ 368:application/chassis/balance_chassis.c ****     { // 正常工作
+ 369:application/chassis/balance_chassis.c ****         // DMMotorStop(motor_lf);
+ 370:application/chassis/balance_chassis.c ****         // DMMotorStop(motor_lb);
+ 371:application/chassis/balance_chassis.c ****         // DMMotorStop(motor_rf);
+ 372:application/chassis/balance_chassis.c ****         // DMMotorStop(motor_rb);
+ 373:application/chassis/balance_chassis.c **** 
+ 374:application/chassis/balance_chassis.c ****         // DJIMotorStop(foot_motor_lf);
+ 375:application/chassis/balance_chassis.c ****         // DJIMotorStop(foot_motor_rf);
+ 376:application/chassis/balance_chassis.c **** 
+ 377:application/chassis/balance_chassis.c ****         DMMotorEnable(motor_lf);
+ 378:application/chassis/balance_chassis.c ****         DMMotorEnable(motor_lb);
+ 379:application/chassis/balance_chassis.c ****         DMMotorEnable(motor_rf);
+ 380:application/chassis/balance_chassis.c ****         DMMotorEnable(motor_rb);
+ 381:application/chassis/balance_chassis.c **** 
+ 382:application/chassis/balance_chassis.c ****         DJIMotorEnable(foot_motor_lf);
+ 383:application/chassis/balance_chassis.c ****         DJIMotorEnable(foot_motor_rf);
+ 384:application/chassis/balance_chassis.c ****     }
+ 385:application/chassis/balance_chassis.c **** 
+ 386:application/chassis/balance_chassis.c ****     VMC_Calc(&vmc_l, motor_lb->measure.position + JOINT_ANGLE_OFFSET, motor_lf->measure.position, 
+ 1019              		.loc 1 386 5 view .LVU244
+ 1020              		.loc 1 386 30 is_stmt 0 view .LVU245
+ 1021 0064 5B4E     		ldr	r6, .L29+20
+ 1022 0066 3268     		ldr	r2, [r6]
+ 1023              		.loc 1 386 39 view .LVU246
+ 1024 0068 92ED030A 		vldr.32	s0, [r2, #12]
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 29
+
+
+ 1025              		.loc 1 386 79 view .LVU247
+ 1026 006c 584F     		ldr	r7, .L29+16
+ 1027 006e 3B68     		ldr	r3, [r7]
+ 1028              		.loc 1 386 5 view .LVU248
+ 1029 0070 DFF894A1 		ldr	r10, .L29+72
+ 1030 0074 DFF84881 		ldr	r8, .L29
+ 1031 0078 D8F81910 		ldr	r1, [r8, #25]	@ unaligned
+ 1032 007c 02EE101A 		vmov	s4, r1	@ int
+ 1033 0080 9FED578A 		vldr.32	s16, .L29+32
+ 1034 0084 DFF88491 		ldr	r9, .L29+76
+ 1035 0088 DAED092A 		vldr.32	s5, [r10, #36]
+ 1036 008c D3ED011A 		vldr.32	s3, [r3, #4]
+ 1037 0090 92ED011A 		vldr.32	s2, [r2, #4]
+ 1038 0094 D3ED030A 		vldr.32	s1, [r3, #12]
+ 1039 0098 30EE080A 		vadd.f32	s0, s0, s16
+ 1040 009c 4846     		mov	r0, r9
+ 1041 009e FFF7FEFF 		bl	VMC_Calc
+ 1042              	.LVL50:
+ 387:application/chassis/balance_chassis.c ****         motor_lb->measure.velocity, motor_lf->measure.velocity, chassis_cmd_recv.pitch, INS.MotionA
+ 388:application/chassis/balance_chassis.c ****     VMC_Calc(&vmc_r, -motor_rb->measure.position + JOINT_ANGLE_OFFSET, -motor_rf->measure.position,
+ 1043              		.loc 1 388 5 is_stmt 1 view .LVU249
+ 1044              		.loc 1 388 31 is_stmt 0 view .LVU250
+ 1045 00a2 4E4C     		ldr	r4, .L29+28
+ 1046 00a4 2268     		ldr	r2, [r4]
+ 1047              		.loc 1 388 40 view .LVU251
+ 1048 00a6 92ED030A 		vldr.32	s0, [r2, #12]
+ 1049              		.loc 1 388 81 view .LVU252
+ 1050 00aa 4B4D     		ldr	r5, .L29+24
+ 1051 00ac 2B68     		ldr	r3, [r5]
+ 1052              		.loc 1 388 90 view .LVU253
+ 1053 00ae D3ED030A 		vldr.32	s1, [r3, #12]
+ 389:application/chassis/balance_chassis.c ****         -motor_rb->measure.velocity, -motor_rf->measure.velocity, chassis_cmd_recv.pitch, INS.Motio
+ 1054              		.loc 1 389 27 view .LVU254
+ 1055 00b2 92ED011A 		vldr.32	s2, [r2, #4]
+ 1056              		.loc 1 389 56 view .LVU255
+ 1057 00b6 D3ED011A 		vldr.32	s3, [r3, #4]
+ 388:application/chassis/balance_chassis.c ****         -motor_rb->measure.velocity, -motor_rf->measure.velocity, chassis_cmd_recv.pitch, INS.Motio
+ 1058              		.loc 1 388 5 view .LVU256
+ 1059 00ba D8F81930 		ldr	r3, [r8, #25]	@ unaligned
+ 1060 00be 02EE103A 		vmov	s4, r3	@ int
+ 1061 00c2 DFF84C81 		ldr	r8, .L29+80
+ 1062 00c6 DAED092A 		vldr.32	s5, [r10, #36]
+ 1063 00ca F1EE611A 		vneg.f32	s3, s3
+ 1064 00ce B1EE411A 		vneg.f32	s2, s2
+ 1065 00d2 F1EE600A 		vneg.f32	s1, s1
+ 1066 00d6 38EE400A 		vsub.f32	s0, s16, s0
+ 1067 00da 4046     		mov	r0, r8
+ 1068 00dc FFF7FEFF 		bl	VMC_Calc
+ 1069              	.LVL51:
+ 390:application/chassis/balance_chassis.c ****     VMC_Jacobian(&vmc_l);
+ 1070              		.loc 1 390 5 is_stmt 1 view .LVU257
+ 1071 00e0 4846     		mov	r0, r9
+ 1072 00e2 FFF7FEFF 		bl	VMC_Jacobian
+ 1073              	.LVL52:
+ 391:application/chassis/balance_chassis.c ****     VMC_Jacobian(&vmc_r);
+ 1074              		.loc 1 391 5 view .LVU258
+ 1075 00e6 4046     		mov	r0, r8
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 30
+
+
+ 1076 00e8 FFF7FEFF 		bl	VMC_Jacobian
+ 1077              	.LVL53:
+ 392:application/chassis/balance_chassis.c ****     VMC_Force(&vmc_l, motor_lf->measure.torque, motor_lb->measure.torque, 0.09f);
+ 1078              		.loc 1 392 5 view .LVU259
+ 1079              		.loc 1 392 31 is_stmt 0 view .LVU260
+ 1080 00ec 3B68     		ldr	r3, [r7]
+ 1081              		.loc 1 392 57 view .LVU261
+ 1082 00ee 3268     		ldr	r2, [r6]
+ 1083              		.loc 1 392 5 view .LVU262
+ 1084 00f0 9FED3C8A 		vldr.32	s16, .L29+36
+ 1085 00f4 B0EE481A 		vmov.f32	s2, s16
+ 1086 00f8 D2ED040A 		vldr.32	s1, [r2, #16]
+ 1087 00fc 93ED040A 		vldr.32	s0, [r3, #16]
+ 1088 0100 4846     		mov	r0, r9
+ 1089 0102 FFF7FEFF 		bl	VMC_Force
+ 1090              	.LVL54:
+ 393:application/chassis/balance_chassis.c ****     VMC_Force(&vmc_r, motor_rf->measure.torque, motor_rb->measure.torque, 0.09f);
+ 1091              		.loc 1 393 5 is_stmt 1 view .LVU263
+ 1092              		.loc 1 393 31 is_stmt 0 view .LVU264
+ 1093 0106 2B68     		ldr	r3, [r5]
+ 1094              		.loc 1 393 57 view .LVU265
+ 1095 0108 2268     		ldr	r2, [r4]
+ 1096              		.loc 1 393 5 view .LVU266
+ 1097 010a B0EE481A 		vmov.f32	s2, s16
+ 1098 010e D2ED040A 		vldr.32	s1, [r2, #16]
+ 1099 0112 93ED040A 		vldr.32	s0, [r3, #16]
+ 1100 0116 4046     		mov	r0, r8
+ 1101 0118 FFF7FEFF 		bl	VMC_Force
+ 1102              	.LVL55:
+ 394:application/chassis/balance_chassis.c **** 
+ 395:application/chassis/balance_chassis.c ****     // 根据控制模式进行正运动学解算,计算底盘输出
+ 396:application/chassis/balance_chassis.c ****     BalanceControlCalculate();
+ 1103              		.loc 1 396 5 is_stmt 1 view .LVU267
+ 1104 011c FFF7FEFF 		bl	BalanceControlCalculate
+ 1105              	.LVL56:
+ 397:application/chassis/balance_chassis.c ****     BalanceTorqueCombine();
+ 1106              		.loc 1 397 5 view .LVU268
+ 1107 0120 FFF7FEFF 		bl	BalanceTorqueCombine
+ 1108              	.LVL57:
+ 398:application/chassis/balance_chassis.c **** 
+ 399:application/chassis/balance_chassis.c ****     DMMotorSetRef(motor_lf, joint_lf_tor);
+ 1109              		.loc 1 399 5 view .LVU269
+ 1110 0124 304B     		ldr	r3, .L29+40
+ 1111 0126 93ED000A 		vldr.32	s0, [r3]
+ 1112 012a 3868     		ldr	r0, [r7]
+ 1113 012c FFF7FEFF 		bl	DMMotorSetRef
+ 1114              	.LVL58:
+ 400:application/chassis/balance_chassis.c ****     DMMotorSetRef(motor_lb, joint_lb_tor);
+ 1115              		.loc 1 400 5 view .LVU270
+ 1116 0130 2E4B     		ldr	r3, .L29+44
+ 1117 0132 93ED000A 		vldr.32	s0, [r3]
+ 1118 0136 3068     		ldr	r0, [r6]
+ 1119 0138 FFF7FEFF 		bl	DMMotorSetRef
+ 1120              	.LVL59:
+ 401:application/chassis/balance_chassis.c ****     DMMotorSetRef(motor_rf, -joint_rf_tor);
+ 1121              		.loc 1 401 5 view .LVU271
+ 1122 013c 2C4B     		ldr	r3, .L29+48
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 31
+
+
+ 1123 013e 93ED000A 		vldr.32	s0, [r3]
+ 1124 0142 B1EE400A 		vneg.f32	s0, s0
+ 1125 0146 2868     		ldr	r0, [r5]
+ 1126 0148 FFF7FEFF 		bl	DMMotorSetRef
+ 1127              	.LVL60:
+ 402:application/chassis/balance_chassis.c ****     DMMotorSetRef(motor_rb, -joint_rb_tor);
+ 1128              		.loc 1 402 5 view .LVU272
+ 1129 014c 294B     		ldr	r3, .L29+52
+ 1130 014e 93ED000A 		vldr.32	s0, [r3]
+ 1131 0152 B1EE400A 		vneg.f32	s0, s0
+ 1132 0156 2068     		ldr	r0, [r4]
+ 1133 0158 FFF7FEFF 		bl	DMMotorSetRef
+ 1134              	.LVL61:
+ 403:application/chassis/balance_chassis.c **** 
+ 404:application/chassis/balance_chassis.c ****     DJIMotorSetRef(foot_motor_lf, foot_l_tor);
+ 1135              		.loc 1 404 5 view .LVU273
+ 1136 015c 264B     		ldr	r3, .L29+56
+ 1137 015e 93ED000A 		vldr.32	s0, [r3]
+ 1138 0162 194B     		ldr	r3, .L29+8
+ 1139 0164 1868     		ldr	r0, [r3]
+ 1140 0166 FFF7FEFF 		bl	DJIMotorSetRef
+ 1141              	.LVL62:
+ 405:application/chassis/balance_chassis.c ****     DJIMotorSetRef(foot_motor_rf, -foot_r_tor);
+ 1142              		.loc 1 405 5 view .LVU274
+ 1143 016a 244B     		ldr	r3, .L29+60
+ 1144 016c 93ED000A 		vldr.32	s0, [r3]
+ 1145 0170 B1EE400A 		vneg.f32	s0, s0
+ 1146 0174 154B     		ldr	r3, .L29+12
+ 1147 0176 1868     		ldr	r0, [r3]
+ 1148 0178 FFF7FEFF 		bl	DJIMotorSetRef
+ 1149              	.LVL63:
+ 406:application/chassis/balance_chassis.c **** 
+ 407:application/chassis/balance_chassis.c ****  
+ 408:application/chassis/balance_chassis.c ****  #ifdef CHASSIS_BOARD
+ 409:application/chassis/balance_chassis.c ****      ;
+ 410:application/chassis/balance_chassis.c ****  #endif // CHASSIS_BOARD
+ 411:application/chassis/balance_chassis.c ****  
+ 412:application/chassis/balance_chassis.c ****      // 推送反馈消息
+ 413:application/chassis/balance_chassis.c ****  #ifdef ONE_BOARD
+ 414:application/chassis/balance_chassis.c ****      PubPushMessage(chassis_pub, (void *)&chassis_feedback_data);
+ 1150              		.loc 1 414 6 view .LVU275
+ 1151 017c 2049     		ldr	r1, .L29+64
+ 1152 017e 214B     		ldr	r3, .L29+68
+ 1153 0180 1868     		ldr	r0, [r3]
+ 1154 0182 FFF7FEFF 		bl	PubPushMessage
+ 1155              	.LVL64:
+ 415:application/chassis/balance_chassis.c ****  #endif
+ 416:application/chassis/balance_chassis.c ****  #ifdef CHASSIS_BOARD
+ 417:application/chassis/balance_chassis.c ****      CANCommSend(chasiss_can_comm, (void *)&chassis_feedback_data);
+ 418:application/chassis/balance_chassis.c ****  #endif // CHASSIS_BOARD
+ 419:application/chassis/balance_chassis.c ****  }
+ 1156              		.loc 1 419 2 is_stmt 0 view .LVU276
+ 1157 0186 BDEC028B 		vldm	sp!, {d8}
+ 1158              	.LCFI15:
+ 1159              		.cfi_remember_state
+ 1160              		.cfi_restore 80
+ 1161              		.cfi_restore 81
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 32
+
+
+ 1162              		.cfi_def_cfa_offset 32
+ 1163 018a BDE8F087 		pop	{r4, r5, r6, r7, r8, r9, r10, pc}
+ 1164              	.L26:
+ 1165              	.LCFI16:
+ 1166              		.cfi_restore_state
+ 377:application/chassis/balance_chassis.c ****         DMMotorEnable(motor_lb);
+ 1167              		.loc 1 377 9 is_stmt 1 view .LVU277
+ 1168 018e 104B     		ldr	r3, .L29+16
+ 1169 0190 1868     		ldr	r0, [r3]
+ 1170 0192 FFF7FEFF 		bl	DMMotorEnable
+ 1171              	.LVL65:
+ 378:application/chassis/balance_chassis.c ****         DMMotorEnable(motor_rf);
+ 1172              		.loc 1 378 9 view .LVU278
+ 1173 0196 0F4B     		ldr	r3, .L29+20
+ 1174 0198 1868     		ldr	r0, [r3]
+ 1175 019a FFF7FEFF 		bl	DMMotorEnable
+ 1176              	.LVL66:
+ 379:application/chassis/balance_chassis.c ****         DMMotorEnable(motor_rb);
+ 1177              		.loc 1 379 9 view .LVU279
+ 1178 019e 0E4B     		ldr	r3, .L29+24
+ 1179 01a0 1868     		ldr	r0, [r3]
+ 1180 01a2 FFF7FEFF 		bl	DMMotorEnable
+ 1181              	.LVL67:
+ 380:application/chassis/balance_chassis.c **** 
+ 1182              		.loc 1 380 9 view .LVU280
+ 1183 01a6 0D4B     		ldr	r3, .L29+28
+ 1184 01a8 1868     		ldr	r0, [r3]
+ 1185 01aa FFF7FEFF 		bl	DMMotorEnable
+ 1186              	.LVL68:
+ 382:application/chassis/balance_chassis.c ****         DJIMotorEnable(foot_motor_rf);
+ 1187              		.loc 1 382 9 view .LVU281
+ 1188 01ae 064B     		ldr	r3, .L29+8
+ 1189 01b0 1868     		ldr	r0, [r3]
+ 1190 01b2 FFF7FEFF 		bl	DJIMotorEnable
+ 1191              	.LVL69:
+ 383:application/chassis/balance_chassis.c ****     }
+ 1192              		.loc 1 383 9 view .LVU282
+ 1193 01b6 054B     		ldr	r3, .L29+12
+ 1194 01b8 1868     		ldr	r0, [r3]
+ 1195 01ba FFF7FEFF 		bl	DJIMotorEnable
+ 1196              	.LVL70:
+ 1197 01be 51E7     		b	.L27
+ 1198              	.L30:
+ 1199              		.align	2
+ 1200              	.L29:
+ 1201 01c0 00000000 		.word	chassis_cmd_recv
+ 1202 01c4 00000000 		.word	chassis_sub
+ 1203 01c8 00000000 		.word	foot_motor_lf
+ 1204 01cc 00000000 		.word	foot_motor_rf
+ 1205 01d0 00000000 		.word	motor_lf
+ 1206 01d4 00000000 		.word	motor_lb
+ 1207 01d8 00000000 		.word	motor_rf
+ 1208 01dc 00000000 		.word	motor_rb
+ 1209 01e0 C3F54840 		.word	1078523331
+ 1210 01e4 EC51B83D 		.word	1035489772
+ 1211 01e8 00000000 		.word	joint_lf_tor
+ 1212 01ec 00000000 		.word	joint_lb_tor
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 33
+
+
+ 1213 01f0 00000000 		.word	joint_rf_tor
+ 1214 01f4 00000000 		.word	joint_rb_tor
+ 1215 01f8 00000000 		.word	foot_l_tor
+ 1216 01fc 00000000 		.word	foot_r_tor
+ 1217 0200 00000000 		.word	chassis_feedback_data
+ 1218 0204 00000000 		.word	chassis_pub
+ 1219 0208 00000000 		.word	INS
+ 1220 020c 00000000 		.word	vmc_l
+ 1221 0210 00000000 		.word	vmc_r
+ 1222              		.cfi_endproc
+ 1223              	.LFE280:
+ 1225              		.global	j_force_torque_r
+ 1226              		.section	.bss.j_force_torque_r,"aw",%nobits
+ 1227              		.align	2
+ 1230              	j_force_torque_r:
+ 1231 0000 00000000 		.space	4
+ 1232              		.global	j_force_torque_l
+ 1233              		.section	.bss.j_force_torque_l,"aw",%nobits
+ 1234              		.align	2
+ 1237              	j_force_torque_l:
+ 1238 0000 00000000 		.space	4
+ 1239              		.global	j_stand_torque_r
+ 1240              		.section	.bss.j_stand_torque_r,"aw",%nobits
+ 1241              		.align	2
+ 1244              	j_stand_torque_r:
+ 1245 0000 00000000 		.space	4
+ 1246              		.global	j_stand_torque_l
+ 1247              		.section	.bss.j_stand_torque_l,"aw",%nobits
+ 1248              		.align	2
+ 1251              	j_stand_torque_l:
+ 1252 0000 00000000 		.space	4
+ 1253              		.global	right_body_vx
+ 1254              		.section	.bss.right_body_vx,"aw",%nobits
+ 1255              		.align	2
+ 1258              	right_body_vx:
+ 1259 0000 00000000 		.space	4
+ 1260              		.global	left_body_vx
+ 1261              		.section	.bss.left_body_vx,"aw",%nobits
+ 1262              		.align	2
+ 1265              	left_body_vx:
+ 1266 0000 00000000 		.space	4
+ 1267              		.global	right_wheel_phi_vx
+ 1268              		.section	.bss.right_wheel_phi_vx,"aw",%nobits
+ 1269              		.align	2
+ 1272              	right_wheel_phi_vx:
+ 1273 0000 00000000 		.space	4
+ 1274              		.global	left_wheel_phi_vx
+ 1275              		.section	.bss.left_wheel_phi_vx,"aw",%nobits
+ 1276              		.align	2
+ 1279              	left_wheel_phi_vx:
+ 1280 0000 00000000 		.space	4
+ 1281              		.section	.bss.r_leg_PID,"aw",%nobits
+ 1282              		.align	3
+ 1285              	r_leg_PID:
+ 1286 0000 00000000 		.space	120
+ 1286      00000000 
+ 1286      00000000 
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 34
+
+
+ 1286      00000000 
+ 1286      00000000 
+ 1287              		.section	.bss.l_leg_PID,"aw",%nobits
+ 1288              		.align	3
+ 1291              	l_leg_PID:
+ 1292 0000 00000000 		.space	120
+ 1292      00000000 
+ 1292      00000000 
+ 1292      00000000 
+ 1292      00000000 
+ 1293              		.section	.bss.kf,"aw",%nobits
+ 1294              		.align	2
+ 1297              	kf:
+ 1298 0000 00000000 		.space	308
+ 1298      00000000 
+ 1298      00000000 
+ 1298      00000000 
+ 1298      00000000 
+ 1299              		.section	.bss.foot_r_tor,"aw",%nobits
+ 1300              		.align	2
+ 1303              	foot_r_tor:
+ 1304 0000 00000000 		.space	4
+ 1305              		.section	.bss.foot_l_tor,"aw",%nobits
+ 1306              		.align	2
+ 1309              	foot_l_tor:
+ 1310 0000 00000000 		.space	4
+ 1311              		.section	.bss.joint_rb_tor,"aw",%nobits
+ 1312              		.align	2
+ 1315              	joint_rb_tor:
+ 1316 0000 00000000 		.space	4
+ 1317              		.section	.bss.joint_rf_tor,"aw",%nobits
+ 1318              		.align	2
+ 1321              	joint_rf_tor:
+ 1322 0000 00000000 		.space	4
+ 1323              		.section	.bss.joint_lb_tor,"aw",%nobits
+ 1324              		.align	2
+ 1327              	joint_lb_tor:
+ 1328 0000 00000000 		.space	4
+ 1329              		.section	.bss.joint_lf_tor,"aw",%nobits
+ 1330              		.align	2
+ 1333              	joint_lf_tor:
+ 1334 0000 00000000 		.space	4
+ 1335              		.section	.bss.dist,"aw",%nobits
+ 1336              		.align	2
+ 1339              	dist:
+ 1340 0000 00000000 		.space	4
+ 1341              		.section	.bss.speed_m,"aw",%nobits
+ 1342              		.align	2
+ 1345              	speed_m:
+ 1346 0000 00000000 		.space	4
+ 1347              		.section	.bss.speed,"aw",%nobits
+ 1348              		.align	2
+ 1351              	speed:
+ 1352 0000 00000000 		.space	4
+ 1353              		.section	.data.len_r,"aw"
+ 1354              		.align	2
+ 1357              	len_r:
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 35
+
+
+ 1358 0000 CDCC4C3E 		.word	1045220557
+ 1359              		.section	.data.len_l,"aw"
+ 1360              		.align	2
+ 1363              	len_l:
+ 1364 0000 CDCC4C3E 		.word	1045220557
+ 1365              		.section	.rodata.k,"a"
+ 1366              		.align	2
+ 1369              	k:
+ 1370 0000 3FC70343 		.word	1124321087
+ 1371 0004 D28E09C3 		.word	-1022783790
+ 1372 0008 E27255C1 		.word	-1051364638
+ 1373 000c 9E336741 		.word	1097282462
+ 1374 0010 C4146DC1 		.word	-1049815868
+ 1375 0014 7B6938C0 		.word	-1070044805
+ 1376 0018 6BE46041 		.word	1096868971
+ 1377 001c 980A71C1 		.word	-1049556328
+ 1378 0020 EAF8C3C0 		.word	-1060898582
+ 1379 0024 C11F4641 		.word	1095114689
+ 1380 0028 29B980C1 		.word	-1048528599
+ 1381 002c E63B55C1 		.word	-1051378714
+ 1382 0030 801A1B42 		.word	1109072512
+ 1383 0034 E6458BC2 		.word	-1031059994
+ 1384 0038 65A12042 		.word	1109434725
+ 1385 003c 5452CB40 		.word	1087066708
+ 1386 0040 23F4F7C0 		.word	-1057491933
+ 1387 0044 342F9740 		.word	1083649844
+ 1388 0048 018C30C3 		.word	-1020228607
+ 1389 004c 7A2E5C42 		.word	1113337466
+ 1390 0050 979E0342 		.word	1107533463
+ 1391 0054 76E1F7BE 		.word	-1091051146
+ 1392 0058 DF9957C1 		.word	-1051223585
+ 1393 005c 21D32741 		.word	1093128993
+ 1394 0060 35080DC2 		.word	-1039333323
+ 1395 0064 33D3B440 		.word	1085592371
+ 1396 0068 1F222941 		.word	1093214751
+ 1397 006c 3C8803C2 		.word	-1039955908
+ 1398 0070 F4F93FC1 		.word	-1052771852
+ 1399 0074 3645B341 		.word	1102267702
+ 1400 0078 50B217C3 		.word	-1021857200
+ 1401 007c B3E31443 		.word	1125442483
+ 1402 0080 E9AD1142 		.word	1108454889
+ 1403 0084 076828C1 		.word	-1054316537
+ 1404 0088 B8653D41 		.word	1094542776
+ 1405 008c C3B78E3F 		.word	1066317763
+ 1406              		.section	.bss.lqr_r,"aw",%nobits
+ 1407              		.align	2
+ 1410              	lqr_r:
+ 1411 0000 00000000 		.space	156
+ 1411      00000000 
+ 1411      00000000 
+ 1411      00000000 
+ 1411      00000000 
+ 1412              		.section	.bss.lqr_l,"aw",%nobits
+ 1413              		.align	2
+ 1416              	lqr_l:
+ 1417 0000 00000000 		.space	156
+ 1417      00000000 
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 36
+
+
+ 1417      00000000 
+ 1417      00000000 
+ 1417      00000000 
+ 1418              		.section	.bss.vmc_r,"aw",%nobits
+ 1419              		.align	2
+ 1422              	vmc_r:
+ 1423 0000 00000000 		.space	88
+ 1423      00000000 
+ 1423      00000000 
+ 1423      00000000 
+ 1423      00000000 
+ 1424              		.section	.bss.vmc_l,"aw",%nobits
+ 1425              		.align	2
+ 1428              	vmc_l:
+ 1429 0000 00000000 		.space	88
+ 1429      00000000 
+ 1429      00000000 
+ 1429      00000000 
+ 1429      00000000 
+ 1430              		.section	.bss.foot_motor_rf,"aw",%nobits
+ 1431              		.align	2
+ 1434              	foot_motor_rf:
+ 1435 0000 00000000 		.space	4
+ 1436              		.section	.bss.foot_motor_lf,"aw",%nobits
+ 1437              		.align	2
+ 1440              	foot_motor_lf:
+ 1441 0000 00000000 		.space	4
+ 1442              		.section	.bss.motor_rb,"aw",%nobits
+ 1443              		.align	2
+ 1446              	motor_rb:
+ 1447 0000 00000000 		.space	4
+ 1448              		.section	.bss.motor_lb,"aw",%nobits
+ 1449              		.align	2
+ 1452              	motor_lb:
+ 1453 0000 00000000 		.space	4
+ 1454              		.section	.bss.motor_rf,"aw",%nobits
+ 1455              		.align	2
+ 1458              	motor_rf:
+ 1459 0000 00000000 		.space	4
+ 1460              		.section	.bss.motor_lf,"aw",%nobits
+ 1461              		.align	2
+ 1464              	motor_lf:
+ 1465 0000 00000000 		.space	4
+ 1466              		.section	.bss.chassis_feedback_data,"aw",%nobits
+ 1467              		.align	2
+ 1470              	chassis_feedback_data:
+ 1471 0000 00000000 		.space	14
+ 1471      00000000 
+ 1471      00000000 
+ 1471      0000
+ 1472              		.section	.bss.chassis_cmd_recv,"aw",%nobits
+ 1473              		.align	2
+ 1476              	chassis_cmd_recv:
+ 1477 0000 00000000 		.space	53
+ 1477      00000000 
+ 1477      00000000 
+ 1477      00000000 
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 37
+
+
+ 1477      00000000 
+ 1478              		.section	.bss.chassis_sub,"aw",%nobits
+ 1479              		.align	2
+ 1482              	chassis_sub:
+ 1483 0000 00000000 		.space	4
+ 1484              		.section	.bss.chassis_pub,"aw",%nobits
+ 1485              		.align	2
+ 1488              	chassis_pub:
+ 1489 0000 00000000 		.space	4
+ 1490              		.section	.bss.chassis_config,"aw",%nobits
+ 1491              		.align	2
+ 1494              	chassis_config:
+ 1495 0000 00000000 		.space	4
+ 1496              		.section	.rodata
+ 1497              		.align	2
+ 1498              		.set	.LANCHOR0,. + 0
+ 1499              	.LC0:
+ 1500 0000 0000803F 		.word	1065353216
+ 1501 0004 6F12833A 		.word	981668463
+ 1502 0008 00000000 		.word	0
+ 1503 000c 0000803F 		.word	1065353216
+ 1504              	.LC1:
+ 1505 0010 0000C842 		.word	1120403456
+ 1506 0014 00000000 		.word	0
+ 1507 0018 00000000 		.word	0
+ 1508 001c CDCC4C3D 		.word	1028443341
+ 1509              	.LC2:
+ 1510 0020 00004843 		.word	1128792064
+ 1511 0024 00000000 		.word	0
+ 1512 0028 00000000 		.word	0
+ 1513 002c CDCC4C3D 		.word	1028443341
+ 1514              	.LC3:
+ 1515 0030 0050C347 		.word	1203982336
+ 1516 0034 00000000 		.word	0
+ 1517 0038 00000000 		.word	0
+ 1518 003c 0050C347 		.word	1203982336
+ 1519              	.LC4:
+ 1520 0040 0000803F 		.word	1065353216
+ 1521 0044 00000000 		.word	0
+ 1522 0048 00000000 		.word	0
+ 1523 004c 0000803F 		.word	1065353216
+ 1524              		.text
+ 1525              	.Letext0:
+ 1526              		.file 2 "D:/Msys2/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1527              		.file 3 "D:/Msys2/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1528              		.file 4 "Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f407xx.h"
+ 1529              		.file 5 "Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f4xx.h"
+ 1530              		.file 6 "D:/Msys2/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1531              		.file 7 "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_can.h"
+ 1532              		.file 8 "Middlewares/ST/ARM/DSP/Include/arm_math_types.h"
+ 1533              		.file 9 "Middlewares/ST/ARM/DSP/Include/dsp/matrix_functions.h"
+ 1534              		.file 10 "modules/algorithm/kalman_filter.h"
+ 1535              		.file 11 "modules/imu/ins_task.h"
+ 1536              		.file 12 "bsp/can/bsp_can.h"
+ 1537              		.file 13 "modules/algorithm/controller.h"
+ 1538              		.file 14 "modules/motor/motor_def.h"
+ 1539              		.file 15 "application/config/config.h"
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 38
+
+
+ 1540              		.file 16 "application/robot_def.h"
+ 1541              		.file 17 "modules/daemon/daemon.h"
+ 1542              		.file 18 "modules/motor/DMmotor/dmmotor.h"
+ 1543              		.file 19 "modules/motor/DJImotor/dji_motor.h"
+ 1544              		.file 20 "modules/message_center/message_center.h"
+ 1545              		.file 21 "modules/algorithm/VMC.h"
+ 1546              		.file 22 "modules/algorithm/LQR.h"
+ 1547              		.file 23 "modules/algorithm/user_lib.h"
+ 1548              		.file 24 "D:/Msys2/mingw64/arm-none-eabi/include/string.h"
+ 1549              		.file 25 "<built-in>"
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 39
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 balance_chassis.c
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:21     .text.EstimateSpeed:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:26     .text.EstimateSpeed:00000000 EstimateSpeed
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:131    .text.EstimateSpeed:00000088 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1440   .bss.foot_motor_lf:00000000 foot_motor_lf
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1428   .bss.vmc_l:00000000 vmc_l
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1434   .bss.foot_motor_rf:00000000 foot_motor_rf
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1422   .bss.vmc_r:00000000 vmc_r
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1345   .bss.speed_m:00000000 speed_m
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1297   .bss.kf:00000000 kf
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1351   .bss.speed:00000000 speed
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:147    .text.BalanceControlCalculate:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:152    .text.BalanceControlCalculate:00000000 BalanceControlCalculate
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:302    .text.BalanceControlCalculate:000000f4 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1476   .bss.chassis_cmd_recv:00000000 chassis_cmd_recv
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1416   .bss.lqr_l:00000000 lqr_l
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1410   .bss.lqr_r:00000000 lqr_r
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1339   .bss.dist:00000000 dist
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1363   .data.len_l:00000000 len_l
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1357   .data.len_r:00000000 len_r
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:319    .text.BalanceTorqueCombine:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:324    .text.BalanceTorqueCombine:00000000 BalanceTorqueCombine
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:521    .text.BalanceTorqueCombine:00000178 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1291   .bss.l_leg_PID:00000000 l_leg_PID
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1251   .bss.j_stand_torque_l:00000000 j_stand_torque_l
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1285   .bss.r_leg_PID:00000000 r_leg_PID
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1244   .bss.j_stand_torque_r:00000000 j_stand_torque_r
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1237   .bss.j_force_torque_l:00000000 j_force_torque_l
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1230   .bss.j_force_torque_r:00000000 j_force_torque_r
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1315   .bss.joint_rb_tor:00000000 joint_rb_tor
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1321   .bss.joint_rf_tor:00000000 joint_rf_tor
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1309   .bss.foot_l_tor:00000000 foot_l_tor
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1303   .bss.foot_r_tor:00000000 foot_r_tor
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1327   .bss.joint_lb_tor:00000000 joint_lb_tor
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1333   .bss.joint_lf_tor:00000000 joint_lf_tor
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:545    .rodata.BalanceChassisInit.str1.4:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:552    .text.BalanceChassisInit:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:558    .text.BalanceChassisInit:00000000 BalanceChassisInit
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:898    .text.BalanceChassisInit:0000022c $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1494   .bss.chassis_config:00000000 chassis_config
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1464   .bss.motor_lf:00000000 motor_lf
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1458   .bss.motor_rf:00000000 motor_rf
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1446   .bss.motor_rb:00000000 motor_rb
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1452   .bss.motor_lb:00000000 motor_lb
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1369   .rodata.k:00000000 k
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1482   .bss.chassis_sub:00000000 chassis_sub
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1488   .bss.chassis_pub:00000000 chassis_pub
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:933    .text.BalanceChassisTask:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:939    .text.BalanceChassisTask:00000000 BalanceChassisTask
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1201   .text.BalanceChassisTask:000001c0 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1470   .bss.chassis_feedback_data:00000000 chassis_feedback_data
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1227   .bss.j_force_torque_r:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1234   .bss.j_force_torque_l:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1241   .bss.j_stand_torque_r:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1248   .bss.j_stand_torque_l:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1258   .bss.right_body_vx:00000000 right_body_vx
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 40
+
+
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1255   .bss.right_body_vx:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1265   .bss.left_body_vx:00000000 left_body_vx
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1262   .bss.left_body_vx:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1272   .bss.right_wheel_phi_vx:00000000 right_wheel_phi_vx
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1269   .bss.right_wheel_phi_vx:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1279   .bss.left_wheel_phi_vx:00000000 left_wheel_phi_vx
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1276   .bss.left_wheel_phi_vx:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1282   .bss.r_leg_PID:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1288   .bss.l_leg_PID:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1294   .bss.kf:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1300   .bss.foot_r_tor:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1306   .bss.foot_l_tor:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1312   .bss.joint_rb_tor:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1318   .bss.joint_rf_tor:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1324   .bss.joint_lb_tor:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1330   .bss.joint_lf_tor:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1336   .bss.dist:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1342   .bss.speed_m:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1348   .bss.speed:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1354   .data.len_r:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1360   .data.len_l:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1366   .rodata.k:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1407   .bss.lqr_r:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1413   .bss.lqr_l:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1419   .bss.vmc_r:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1425   .bss.vmc_l:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1431   .bss.foot_motor_rf:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1437   .bss.foot_motor_lf:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1443   .bss.motor_rb:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1449   .bss.motor_lb:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1455   .bss.motor_rf:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1461   .bss.motor_lf:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1467   .bss.chassis_feedback_data:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1473   .bss.chassis_cmd_recv:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1479   .bss.chassis_sub:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1485   .bss.chassis_pub:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1491   .bss.chassis_config:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s:1497   .rodata:00000000 $d
+
+UNDEFINED SYMBOLS
+Kalman_Filter_Update
+INS
+LQR_SetSpeed
+memcpy
+LQR_Calc
+PIDCalculate
+float_constrain
+int_constrain
+ChassisConfigFeed
+DJIMotorInit
+DMMotorInit
+memset
+PIDInit
+Kalman_Filter_Init
+VMC_Init
+LQR_Init
+SubRegister
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\ccpZQvD5.s 			page 41
+
+
+PubRegister
+SubGetMessage
+DJIMotorChangeFeed
+DMMotorStop
+DJIMotorStop
+VMC_Calc
+VMC_Jacobian
+VMC_Force
+DMMotorSetRef
+DJIMotorSetRef
+PubPushMessage
+DMMotorEnable
+DJIMotorEnable

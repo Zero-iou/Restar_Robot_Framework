@@ -1,0 +1,2400 @@
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 1
+
+
+   1              		.cpu cortex-m4
+   2              		.arch armv7e-m
+   3              		.fpu fpv4-sp-d16
+   4              		.eabi_attribute 27, 1
+   5              		.eabi_attribute 28, 1
+   6              		.eabi_attribute 20, 1
+   7              		.eabi_attribute 21, 1
+   8              		.eabi_attribute 23, 3
+   9              		.eabi_attribute 24, 1
+  10              		.eabi_attribute 25, 1
+  11              		.eabi_attribute 26, 1
+  12              		.eabi_attribute 30, 1
+  13              		.eabi_attribute 34, 1
+  14              		.eabi_attribute 18, 4
+  15              		.file	"robot_cmd.c"
+  16              		.text
+  17              	.Ltext0:
+  18              		.cfi_sections	.debug_frame
+  19              		.file 1 "application/cmd/robot_cmd.c"
+  20              		.section	.text.CalcOffsetAngle,"ax",%progbits
+  21              		.align	1
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	CalcOffsetAngle:
+  27              	.LFB277:
+   1:application/cmd/robot_cmd.c **** // app
+   2:application/cmd/robot_cmd.c **** #include "robot_def.h"
+   3:application/cmd/robot_cmd.c **** #include "robot_cmd.h"
+   4:application/cmd/robot_cmd.c **** // module
+   5:application/cmd/robot_cmd.c **** #include "remote_control.h"
+   6:application/cmd/robot_cmd.c **** #include "ins_task.h"
+   7:application/cmd/robot_cmd.c **** #include "referee_task.h"
+   8:application/cmd/robot_cmd.c **** #include "referee_UI.h"
+   9:application/cmd/robot_cmd.c **** #include "master_process.h"
+  10:application/cmd/robot_cmd.c **** #include "message_center.h"
+  11:application/cmd/robot_cmd.c **** #include "general_def.h"
+  12:application/cmd/robot_cmd.c **** #include "dji_motor.h"
+  13:application/cmd/robot_cmd.c **** #include "bmi088.h"
+  14:application/cmd/robot_cmd.c **** #include "buzzer.h"
+  15:application/cmd/robot_cmd.c **** #include "led.h"
+  16:application/cmd/robot_cmd.c **** // bsp
+  17:application/cmd/robot_cmd.c **** #include "bsp_dwt.h"
+  18:application/cmd/robot_cmd.c **** #include "bsp_log.h"
+  19:application/cmd/robot_cmd.c **** 
+  20:application/cmd/robot_cmd.c **** /* 根据remote_control.h中的通道值自动计算的参数 */
+  21:application/cmd/robot_cmd.c **** #define HALF_RC_CH_MAX ((RC_CH_VALUE_MAX - RC_CH_VALUE_MIN) / 2.0f)
+  22:application/cmd/robot_cmd.c **** 
+  23:application/cmd/robot_cmd.c **** /* cmd应用包含的模块实例指针和交互信息存储*/
+  24:application/cmd/robot_cmd.c **** static Robot_Config_s *robot_config;
+  25:application/cmd/robot_cmd.c **** 
+  26:application/cmd/robot_cmd.c **** #ifdef GIMBAL_BOARD // 对双板的兼容,条件编译
+  27:application/cmd/robot_cmd.c **** #include "can_comm.h"
+  28:application/cmd/robot_cmd.c **** static CANCommInstance *cmd_can_comm; // 双板通信
+  29:application/cmd/robot_cmd.c **** #endif
+  30:application/cmd/robot_cmd.c **** #ifdef ONE_BOARD
+  31:application/cmd/robot_cmd.c **** static Publisher_t *chassis_cmd_pub;   // 底盘控制消息发布者
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 2
+
+
+  32:application/cmd/robot_cmd.c **** static Subscriber_t *chassis_feed_sub; // 底盘反馈信息订阅者
+  33:application/cmd/robot_cmd.c **** #endif                                 // ONE_BOARD
+  34:application/cmd/robot_cmd.c **** 
+  35:application/cmd/robot_cmd.c **** static Chassis_Ctrl_Cmd_s chassis_cmd_send;      // 发送给底盘应用的信息,包括控制信�
+  36:application/cmd/robot_cmd.c **** static Chassis_Upload_Data_s chassis_fetch_data; // 从底盘应用接收的反馈信息信息,底�
+  37:application/cmd/robot_cmd.c **** 
+  38:application/cmd/robot_cmd.c **** static RC_ctrl_t *rc_data;              // 遥控器数据,初始化时返回
+  39:application/cmd/robot_cmd.c **** static RobotPC_Recv_s *pc_recv_data; // 上位机接收数据指针,初始化时返回
+  40:application/cmd/robot_cmd.c **** static RobotPC_Send_s pc_send_data;  // 上位机发送数据
+  41:application/cmd/robot_cmd.c **** 
+  42:application/cmd/robot_cmd.c **** static Publisher_t *gimbal_cmd_pub;            // 云台控制消息发布者
+  43:application/cmd/robot_cmd.c **** static Subscriber_t *gimbal_feed_sub;          // 云台反馈信息订阅者
+  44:application/cmd/robot_cmd.c **** static Gimbal_Ctrl_Cmd_s gimbal_cmd_send;      // 传递给云台的控制信息
+  45:application/cmd/robot_cmd.c **** static Gimbal_Upload_Data_s gimbal_fetch_data; // 从云台获取的反馈信息
+  46:application/cmd/robot_cmd.c **** 
+  47:application/cmd/robot_cmd.c **** static Publisher_t *shoot_cmd_pub;           // 发射控制消息发布者
+  48:application/cmd/robot_cmd.c **** static Subscriber_t *shoot_feed_sub;         // 发射反馈信息订阅者
+  49:application/cmd/robot_cmd.c **** static Shoot_Ctrl_Cmd_s shoot_cmd_send;      // 传递给发射的控制信息
+  50:application/cmd/robot_cmd.c **** static Shoot_Upload_Data_s shoot_fetch_data; // 从发射获取的反馈信息
+  51:application/cmd/robot_cmd.c **** 
+  52:application/cmd/robot_cmd.c **** static referee_info_t* referee_data; // 用于获取裁判系统的数据 
+  53:application/cmd/robot_cmd.c **** static Referee_Interactive_info_t ui_data; // UI数据，将底盘中的数据传入此结构体的
+  54:application/cmd/robot_cmd.c **** 
+  55:application/cmd/robot_cmd.c **** static Robot_Status_e robot_state; // 机器人整体工作状态
+  56:application/cmd/robot_cmd.c **** 
+  57:application/cmd/robot_cmd.c **** BuzzzerInstance *buzzer_alarm;
+  58:application/cmd/robot_cmd.c **** LEDInstance *led_alarm;
+  59:application/cmd/robot_cmd.c **** 
+  60:application/cmd/robot_cmd.c **** void RobotCMDInit()
+  61:application/cmd/robot_cmd.c **** {
+  62:application/cmd/robot_cmd.c ****     robot_config = RobotConfigInit(INFANTRY_ROBOT_4);
+  63:application/cmd/robot_cmd.c **** 
+  64:application/cmd/robot_cmd.c ****     Buzzer_config_s buzzer_config ={
+  65:application/cmd/robot_cmd.c ****             .alarm_level = ALARM_LEVEL_HIGH, //设置警报等级 同一状态下 高等级的响�
+  66:application/cmd/robot_cmd.c ****             .loudness=  0.4, //设置响度
+  67:application/cmd/robot_cmd.c ****             .octave=  OCTAVE_1, // 设置音阶
+  68:application/cmd/robot_cmd.c ****         };
+  69:application/cmd/robot_cmd.c ****     buzzer_alarm = BuzzerRegister(&buzzer_config);    
+  70:application/cmd/robot_cmd.c **** 
+  71:application/cmd/robot_cmd.c ****     LED_config_s LED_config ={
+  72:application/cmd/robot_cmd.c ****             .color = PINK,
+  73:application/cmd/robot_cmd.c ****             .flash = ALWAYS_ON,
+  74:application/cmd/robot_cmd.c ****             .flash_count = 0,
+  75:application/cmd/robot_cmd.c ****         };
+  76:application/cmd/robot_cmd.c ****     led_alarm = LEDRegister(&LED_config);
+  77:application/cmd/robot_cmd.c **** 
+  78:application/cmd/robot_cmd.c ****     rc_data = RemoteControlInit(&huart3);   // 修改为对应串口,注意如果是自研板dbus�
+  79:application/cmd/robot_cmd.c ****     pc_recv_data = RobotPCInit(&huart1); // 视觉通信串口
+  80:application/cmd/robot_cmd.c **** 
+  81:application/cmd/robot_cmd.c ****     referee_data = UITaskInit(&huart6,&ui_data); // 裁判系统初始化,会同时初始化UI 
+  82:application/cmd/robot_cmd.c **** 
+  83:application/cmd/robot_cmd.c ****     gimbal_cmd_pub = PubRegister("gimbal_cmd", sizeof(Gimbal_Ctrl_Cmd_s));
+  84:application/cmd/robot_cmd.c ****     gimbal_feed_sub = SubRegister("gimbal_feed", sizeof(Gimbal_Upload_Data_s));
+  85:application/cmd/robot_cmd.c ****     shoot_cmd_pub = PubRegister("shoot_cmd", sizeof(Shoot_Ctrl_Cmd_s));
+  86:application/cmd/robot_cmd.c ****     shoot_feed_sub = SubRegister("shoot_feed", sizeof(Shoot_Upload_Data_s));
+  87:application/cmd/robot_cmd.c **** 
+  88:application/cmd/robot_cmd.c **** #ifdef ONE_BOARD // 双板兼容
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 3
+
+
+  89:application/cmd/robot_cmd.c ****     chassis_cmd_pub = PubRegister("chassis_cmd", sizeof(Chassis_Ctrl_Cmd_s));
+  90:application/cmd/robot_cmd.c ****     chassis_feed_sub = SubRegister("chassis_feed", sizeof(Chassis_Upload_Data_s));
+  91:application/cmd/robot_cmd.c **** #endif // ONE_BOARD
+  92:application/cmd/robot_cmd.c **** #ifdef GIMBAL_BOARD
+  93:application/cmd/robot_cmd.c ****     CANComm_Init_Config_s comm_conf = {
+  94:application/cmd/robot_cmd.c ****         .can_config = {
+  95:application/cmd/robot_cmd.c ****             .can_handle = &hcan1,
+  96:application/cmd/robot_cmd.c ****             .tx_id = 0x312,
+  97:application/cmd/robot_cmd.c ****             .rx_id = 0x311,
+  98:application/cmd/robot_cmd.c ****         },
+  99:application/cmd/robot_cmd.c ****         .recv_data_len = sizeof(Chassis_Upload_Data_s),
+ 100:application/cmd/robot_cmd.c ****         .send_data_len = sizeof(Chassis_Ctrl_Cmd_s),
+ 101:application/cmd/robot_cmd.c ****     };
+ 102:application/cmd/robot_cmd.c ****     cmd_can_comm = CANCommInit(&comm_conf);
+ 103:application/cmd/robot_cmd.c **** #endif // GIMBAL_BOARD
+ 104:application/cmd/robot_cmd.c ****     gimbal_cmd_send.pitch = 0;
+ 105:application/cmd/robot_cmd.c **** 
+ 106:application/cmd/robot_cmd.c ****     robot_state = ROBOT_READY; // 启动时机器人进入工作模式,后续加入所有应用初�
+ 107:application/cmd/robot_cmd.c **** }
+ 108:application/cmd/robot_cmd.c **** 
+ 109:application/cmd/robot_cmd.c **** /**
+ 110:application/cmd/robot_cmd.c ****  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
+ 111:application/cmd/robot_cmd.c ****  *        单圈绝对角度的范围是0~360,说明文档中有图示
+ 112:application/cmd/robot_cmd.c ****  *
+ 113:application/cmd/robot_cmd.c ****  */
+ 114:application/cmd/robot_cmd.c **** static void CalcOffsetAngle()
+ 115:application/cmd/robot_cmd.c **** {
+  28              		.loc 1 115 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32              		@ link register save eliminated.
+ 116:application/cmd/robot_cmd.c ****     // 别名angle提高可读性,不然太长了不好看,虽然基本不会动这个函数
+ 117:application/cmd/robot_cmd.c ****     static float angle;
+  33              		.loc 1 117 5 view .LVU1
+ 118:application/cmd/robot_cmd.c ****     float yaw_align_angle;
+  34              		.loc 1 118 5 view .LVU2
+ 119:application/cmd/robot_cmd.c ****     angle = gimbal_fetch_data.yaw_motor_single_round_angle; // 从云台获取的当前yaw电机单
+  35              		.loc 1 119 5 view .LVU3
+  36              		.loc 1 119 30 is_stmt 0 view .LVU4
+  37 0000 394B     		ldr	r3, .L25
+  38 0002 1B8D     		ldrh	r3, [r3, #40]
+  39              		.loc 1 119 11 view .LVU5
+  40 0004 07EE903A 		vmov	s15, r3	@ int
+  41 0008 F8EE677A 		vcvt.f32.u32	s15, s15
+  42 000c 374A     		ldr	r2, .L25+4
+  43 000e C2ED007A 		vstr.32	s15, [r2]
+ 120:application/cmd/robot_cmd.c ****     yaw_align_angle = robot_config->gimbal_param.gimbal_offset.yaw_offset * ECD_ANGLE_COEF_DJI;
+  44              		.loc 1 120 5 is_stmt 1 view .LVU6
+  45              		.loc 1 120 35 is_stmt 0 view .LVU7
+  46 0012 374A     		ldr	r2, .L25+8
+  47 0014 1268     		ldr	r2, [r2]
+  48              		.loc 1 120 63 view .LVU8
+  49 0016 D2ED446A 		vldr.32	s13, [r2, #272]
+  50              		.loc 1 120 21 view .LVU9
+  51 001a 9FED367A 		vldr.32	s14, .L25+12
+  52 001e 26EE877A 		vmul.f32	s14, s13, s14
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 4
+
+
+  53              	.LVL0:
+ 121:application/cmd/robot_cmd.c ****     if (robot_config->gimbal_param.gimbal_offset.yaw_offset > 4096)                               /
+  54              		.loc 1 121 5 is_stmt 1 view .LVU10
+  55              		.loc 1 121 8 is_stmt 0 view .LVU11
+  56 0022 9FED356A 		vldr.32	s12, .L25+16
+  57 0026 F4EEC66A 		vcmpe.f32	s13, s12
+  58 002a F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+  59 002e 31DD     		ble	.L24
+ 122:application/cmd/robot_cmd.c ****     {
+ 123:application/cmd/robot_cmd.c ****         if (angle > yaw_align_angle && angle <= 180.0f + yaw_align_angle)
+  60              		.loc 1 123 9 is_stmt 1 view .LVU12
+  61              		.loc 1 123 12 is_stmt 0 view .LVU13
+  62 0030 F4EEC77A 		vcmpe.f32	s15, s14
+  63 0034 F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+  64 0038 0EDD     		ble	.L4
+  65              		.loc 1 123 56 discriminator 1 view .LVU14
+  66 003a DFED306A 		vldr.32	s13, .L25+20
+  67 003e 77EE266A 		vadd.f32	s13, s14, s13
+  68              		.loc 1 123 37 discriminator 1 view .LVU15
+  69 0042 F4EEE67A 		vcmpe.f32	s15, s13
+  70 0046 F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+  71 004a 05D8     		bhi	.L4
+ 124:application/cmd/robot_cmd.c ****             chassis_cmd_send.offset_angle = angle - yaw_align_angle;
+  72              		.loc 1 124 13 is_stmt 1 view .LVU16
+  73              		.loc 1 124 51 is_stmt 0 view .LVU17
+  74 004c 77EEC77A 		vsub.f32	s15, s15, s14
+  75              		.loc 1 124 43 view .LVU18
+  76 0050 2B4B     		ldr	r3, .L25+24
+  77 0052 C3ED037A 		vstr.32	s15, [r3, #12]
+  78 0056 7047     		bx	lr
+  79              	.L4:
+ 125:application/cmd/robot_cmd.c ****         else if (angle > yaw_align_angle - 180.0f && angle <= yaw_align_angle)
+  80              		.loc 1 125 14 is_stmt 1 view .LVU19
+  81              		.loc 1 125 42 is_stmt 0 view .LVU20
+  82 0058 DFED286A 		vldr.32	s13, .L25+20
+  83 005c 77EE666A 		vsub.f32	s13, s14, s13
+  84              		.loc 1 125 17 view .LVU21
+  85 0060 F4EEE67A 		vcmpe.f32	s15, s13
+  86 0064 F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+  87 0068 0ADD     		ble	.L8
+  88              		.loc 1 125 51 discriminator 1 view .LVU22
+  89 006a F4EEC77A 		vcmpe.f32	s15, s14
+  90 006e F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+  91 0072 05D8     		bhi	.L8
+ 126:application/cmd/robot_cmd.c ****             chassis_cmd_send.offset_angle = angle - yaw_align_angle;
+  92              		.loc 1 126 13 is_stmt 1 view .LVU23
+  93              		.loc 1 126 51 is_stmt 0 view .LVU24
+  94 0074 77EEC77A 		vsub.f32	s15, s15, s14
+  95              		.loc 1 126 43 view .LVU25
+  96 0078 214B     		ldr	r3, .L25+24
+  97 007a C3ED037A 		vstr.32	s15, [r3, #12]
+  98 007e 7047     		bx	lr
+  99              	.L8:
+ 127:application/cmd/robot_cmd.c ****         else
+ 128:application/cmd/robot_cmd.c ****             chassis_cmd_send.offset_angle = 360.0f - yaw_align_angle + angle;
+ 100              		.loc 1 128 13 is_stmt 1 view .LVU26
+ 101              		.loc 1 128 52 is_stmt 0 view .LVU27
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 5
+
+
+ 102 0080 DFED206A 		vldr.32	s13, .L25+28
+ 103 0084 36EEC77A 		vsub.f32	s14, s13, s14
+ 104              	.LVL1:
+ 105              		.loc 1 128 70 view .LVU28
+ 106 0088 77EE877A 		vadd.f32	s15, s15, s14
+ 107              		.loc 1 128 43 view .LVU29
+ 108 008c 1C4B     		ldr	r3, .L25+24
+ 109 008e C3ED037A 		vstr.32	s15, [r3, #12]
+ 110 0092 7047     		bx	lr
+ 111              	.LVL2:
+ 112              	.L24:
+ 129:application/cmd/robot_cmd.c ****     }
+ 130:application/cmd/robot_cmd.c ****     else
+ 131:application/cmd/robot_cmd.c ****     {
+ 132:application/cmd/robot_cmd.c ****         if (angle > yaw_align_angle && angle <= 180.0f + yaw_align_angle)
+ 113              		.loc 1 132 9 is_stmt 1 view .LVU30
+ 114              		.loc 1 132 12 is_stmt 0 view .LVU31
+ 115 0094 F4EEC77A 		vcmpe.f32	s15, s14
+ 116 0098 F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+ 117 009c 0EDD     		ble	.L11
+ 118              		.loc 1 132 56 discriminator 1 view .LVU32
+ 119 009e DFED176A 		vldr.32	s13, .L25+20
+ 120 00a2 77EE266A 		vadd.f32	s13, s14, s13
+ 121              		.loc 1 132 37 discriminator 1 view .LVU33
+ 122 00a6 F4EEE67A 		vcmpe.f32	s15, s13
+ 123 00aa F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+ 124 00ae 05D8     		bhi	.L11
+ 133:application/cmd/robot_cmd.c ****             chassis_cmd_send.offset_angle = angle - yaw_align_angle;
+ 125              		.loc 1 133 13 is_stmt 1 view .LVU34
+ 126              		.loc 1 133 51 is_stmt 0 view .LVU35
+ 127 00b0 77EEC77A 		vsub.f32	s15, s15, s14
+ 128              		.loc 1 133 43 view .LVU36
+ 129 00b4 124B     		ldr	r3, .L25+24
+ 130 00b6 C3ED037A 		vstr.32	s15, [r3, #12]
+ 131 00ba 7047     		bx	lr
+ 132              	.L11:
+ 134:application/cmd/robot_cmd.c ****         else if (angle > 0.0f  && angle <= yaw_align_angle)
+ 133              		.loc 1 134 14 is_stmt 1 view .LVU37
+ 134              		.loc 1 134 17 is_stmt 0 view .LVU38
+ 135 00bc 53B1     		cbz	r3, .L14
+ 136              		.loc 1 134 32 discriminator 1 view .LVU39
+ 137 00be F4EEC77A 		vcmpe.f32	s15, s14
+ 138 00c2 F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+ 139 00c6 05D8     		bhi	.L14
+ 135:application/cmd/robot_cmd.c ****             chassis_cmd_send.offset_angle = angle - yaw_align_angle;
+ 140              		.loc 1 135 13 is_stmt 1 view .LVU40
+ 141              		.loc 1 135 51 is_stmt 0 view .LVU41
+ 142 00c8 77EEC77A 		vsub.f32	s15, s15, s14
+ 143              		.loc 1 135 43 view .LVU42
+ 144 00cc 0C4B     		ldr	r3, .L25+24
+ 145 00ce C3ED037A 		vstr.32	s15, [r3, #12]
+ 146 00d2 7047     		bx	lr
+ 147              	.L14:
+ 136:application/cmd/robot_cmd.c ****         else
+ 137:application/cmd/robot_cmd.c ****             chassis_cmd_send.offset_angle = 360.0f - yaw_align_angle - angle;
+ 148              		.loc 1 137 13 is_stmt 1 view .LVU43
+ 149              		.loc 1 137 52 is_stmt 0 view .LVU44
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 6
+
+
+ 150 00d4 DFED0B6A 		vldr.32	s13, .L25+28
+ 151 00d8 36EEC77A 		vsub.f32	s14, s13, s14
+ 152              	.LVL3:
+ 153              		.loc 1 137 70 view .LVU45
+ 154 00dc 77EE677A 		vsub.f32	s15, s14, s15
+ 155              		.loc 1 137 43 view .LVU46
+ 156 00e0 074B     		ldr	r3, .L25+24
+ 157 00e2 C3ED037A 		vstr.32	s15, [r3, #12]
+ 138:application/cmd/robot_cmd.c ****     }
+ 139:application/cmd/robot_cmd.c **** }
+ 158              		.loc 1 139 1 view .LVU47
+ 159 00e6 7047     		bx	lr
+ 160              	.L26:
+ 161              		.align	2
+ 162              	.L25:
+ 163 00e8 00000000 		.word	gimbal_fetch_data
+ 164 00ec 00000000 		.word	angle.5
+ 165 00f0 00000000 		.word	robot_config
+ 166 00f4 ACFF333D 		.word	1026817964
+ 167 00f8 00008045 		.word	1166016512
+ 168 00fc 00003443 		.word	1127481344
+ 169 0100 00000000 		.word	chassis_cmd_send
+ 170 0104 0000B443 		.word	1135869952
+ 171              		.cfi_endproc
+ 172              	.LFE277:
+ 174              		.section	.text.RemoteControlSet,"ax",%progbits
+ 175              		.align	1
+ 176              		.syntax unified
+ 177              		.thumb
+ 178              		.thumb_func
+ 180              	RemoteControlSet:
+ 181              	.LFB279:
+ 140:application/cmd/robot_cmd.c **** 
+ 141:application/cmd/robot_cmd.c **** /**
+ 142:application/cmd/robot_cmd.c ****  * @brief 根据gimbal fetch data进行yaw和pitch限幅
+ 143:application/cmd/robot_cmd.c ****  *        yaw轴范围为[-90,90],pitch轴范围为[PITCH_MIN_ANGLE,PITCH_MAX_ANGLE]
+ 144:application/cmd/robot_cmd.c ****  *
+ 145:application/cmd/robot_cmd.c ****  */
+ 146:application/cmd/robot_cmd.c **** static void LimitSetAngle(float add_yaw, float add_pitch)
+ 147:application/cmd/robot_cmd.c **** {
+ 148:application/cmd/robot_cmd.c ****     static float bias_angle;    // yaw轴角度误差值
+ 149:application/cmd/robot_cmd.c ****     bias_angle = gimbal_cmd_send.yaw + gimbal_fetch_data.gimbal_imu_data.YawTotalAngle;     // yaw�
+ 150:application/cmd/robot_cmd.c ****     // 云台软件限位,向左/向上偏移为正
+ 151:application/cmd/robot_cmd.c ****     // if (chassis_cmd_send.offset_angle + fabs(bias_angle) >= 90.0f || gimbal_cmd_send.pitch >= PI
+ 152:application/cmd/robot_cmd.c ****     if (gimbal_cmd_send.pitch >= robot_config->gimbal_param.gimbal_offset.pitch_max_angle)
+ 153:application/cmd/robot_cmd.c ****     { // 云台yaw轴/pitch轴正向偏移
+ 154:application/cmd/robot_cmd.c ****         if (add_yaw < 0.0f)
+ 155:application/cmd/robot_cmd.c ****             gimbal_cmd_send.yaw -= add_yaw;
+ 156:application/cmd/robot_cmd.c **** 
+ 157:application/cmd/robot_cmd.c ****         if (add_pitch > 0.0f)
+ 158:application/cmd/robot_cmd.c ****             gimbal_cmd_send.pitch -= add_pitch;
+ 159:application/cmd/robot_cmd.c ****     }
+ 160:application/cmd/robot_cmd.c ****     // if (chassis_cmd_send.offset_angle - fabs(bias_angle) <= -90.0f || gimbal_cmd_send.pitch <= P
+ 161:application/cmd/robot_cmd.c ****     if (gimbal_cmd_send.pitch <= robot_config->gimbal_param.gimbal_offset.pitch_min_angle)
+ 162:application/cmd/robot_cmd.c ****     { // 云台yaw轴/pitch轴负向偏移
+ 163:application/cmd/robot_cmd.c ****         if (add_yaw > 0.0f)
+ 164:application/cmd/robot_cmd.c ****             gimbal_cmd_send.yaw -= add_yaw;
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 7
+
+
+ 165:application/cmd/robot_cmd.c ****         
+ 166:application/cmd/robot_cmd.c ****         if (add_pitch < 0.0f)
+ 167:application/cmd/robot_cmd.c ****             gimbal_cmd_send.pitch -= add_pitch;    
+ 168:application/cmd/robot_cmd.c ****     }
+ 169:application/cmd/robot_cmd.c **** }
+ 170:application/cmd/robot_cmd.c **** 
+ 171:application/cmd/robot_cmd.c **** /**
+ 172:application/cmd/robot_cmd.c ****  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
+ 173:application/cmd/robot_cmd.c ****  *
+ 174:application/cmd/robot_cmd.c ****  */ 
+ 175:application/cmd/robot_cmd.c **** static void RemoteControlSet()
+ 176:application/cmd/robot_cmd.c **** {
+ 182              		.loc 1 176 1 is_stmt 1 view -0
+ 183              		.cfi_startproc
+ 184              		@ args = 0, pretend = 0, frame = 0
+ 185              		@ frame_needed = 0, uses_anonymous_args = 0
+ 186              		@ link register save eliminated.
+ 177:application/cmd/robot_cmd.c ****     static float add_yaw, add_pitch; // 角度增量
+ 187              		.loc 1 177 5 view .LVU49
+ 178:application/cmd/robot_cmd.c ****     static shoot_mode_e last_shoot_mode = SHOOT_ZERO_FORCE; 
+ 188              		.loc 1 178 5 view .LVU50
+ 179:application/cmd/robot_cmd.c **** 
+ 180:application/cmd/robot_cmd.c **** #ifdef ONE_BOARD
+ 181:application/cmd/robot_cmd.c ****     // 单独控制云台和底盘
+ 182:application/cmd/robot_cmd.c ****     if (switch_is_down(rc_data[TEMP].rc.switch_left))      
+ 189              		.loc 1 182 5 view .LVU51
+ 190              		.loc 1 182 9 is_stmt 0 view .LVU52
+ 191 0000 774B     		ldr	r3, .L53
+ 192 0002 1B68     		ldr	r3, [r3]
+ 193 0004 9A7A     		ldrb	r2, [r3, #10]	@ zero_extendqisi2
+ 194              		.loc 1 182 8 view .LVU53
+ 195 0006 022A     		cmp	r2, #2
+ 196 0008 6AD0     		beq	.L42
+ 197              	.L28:
+ 183:application/cmd/robot_cmd.c ****     {   // 左侧开关状态[下],右侧开关状态不为[下],底盘无力,云台陀螺仪模式
+ 184:application/cmd/robot_cmd.c ****         if (!switch_is_down(rc_data[TEMP].rc.switch_right))
+ 185:application/cmd/robot_cmd.c ****         {
+ 186:application/cmd/robot_cmd.c ****             gimbal_cmd_send.gimbal_mode = GIMBAL_GYRO_MODE;
+ 187:application/cmd/robot_cmd.c ****         }
+ 188:application/cmd/robot_cmd.c ****         chassis_cmd_send.chassis_mode = CHASSIS_ZERO_FORCE;
+ 189:application/cmd/robot_cmd.c ****     }
+ 190:application/cmd/robot_cmd.c **** 
+ 191:application/cmd/robot_cmd.c ****     if (switch_is_down(rc_data[TEMP].rc.switch_right))      
+ 198              		.loc 1 191 5 is_stmt 1 view .LVU54
+ 199              		.loc 1 191 9 is_stmt 0 view .LVU55
+ 200 000a DA7A     		ldrb	r2, [r3, #11]	@ zero_extendqisi2
+ 201              		.loc 1 191 8 view .LVU56
+ 202 000c 022A     		cmp	r2, #2
+ 203 000e 71D0     		beq	.L43
+ 204              	.L30:
+ 192:application/cmd/robot_cmd.c ****     {   // 左侧开关状态不为[下],右侧开关状态为[下],底盘编码器控制,云台无
+ 193:application/cmd/robot_cmd.c ****         if (!switch_is_down(rc_data[TEMP].rc.switch_left))
+ 194:application/cmd/robot_cmd.c ****         {
+ 195:application/cmd/robot_cmd.c ****             chassis_cmd_send.chassis_mode = CHASSIS_NO_FOLLOW;   
+ 196:application/cmd/robot_cmd.c ****         }
+ 197:application/cmd/robot_cmd.c ****         gimbal_cmd_send.gimbal_mode = GIMBAL_ZERO_FORCE;
+ 198:application/cmd/robot_cmd.c ****     }
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 8
+
+
+ 199:application/cmd/robot_cmd.c ****     // 组合控制底盘和云台
+ 200:application/cmd/robot_cmd.c ****     if (switch_is_mid(rc_data[TEMP].rc.switch_right))       
+ 205              		.loc 1 200 5 is_stmt 1 view .LVU57
+ 206              		.loc 1 200 9 is_stmt 0 view .LVU58
+ 207 0010 DA7A     		ldrb	r2, [r3, #11]	@ zero_extendqisi2
+ 208              		.loc 1 200 8 view .LVU59
+ 209 0012 032A     		cmp	r2, #3
+ 210 0014 78D0     		beq	.L44
+ 211              	.L32:
+ 201:application/cmd/robot_cmd.c ****     {  
+ 202:application/cmd/robot_cmd.c ****         // 左侧开关状态[中],右侧开关状态为[中],底盘跟随云台
+ 203:application/cmd/robot_cmd.c ****         if (switch_is_mid(rc_data[TEMP].rc.switch_left))
+ 204:application/cmd/robot_cmd.c ****             chassis_cmd_send.chassis_mode = CHASSIS_FOLLOW_GIMBAL_YAW;
+ 205:application/cmd/robot_cmd.c **** 
+ 206:application/cmd/robot_cmd.c ****         // 左侧开关状态[上],右侧开关状态为[中],底盘小陀螺
+ 207:application/cmd/robot_cmd.c ****         if (switch_is_up(rc_data[TEMP].rc.switch_left))
+ 208:application/cmd/robot_cmd.c ****             chassis_cmd_send.chassis_mode = CHASSIS_ROTATE;
+ 209:application/cmd/robot_cmd.c ****         
+ 210:application/cmd/robot_cmd.c ****         gimbal_cmd_send.gimbal_mode = GIMBAL_GYRO_MODE;
+ 211:application/cmd/robot_cmd.c ****     }
+ 212:application/cmd/robot_cmd.c **** #endif
+ 213:application/cmd/robot_cmd.c **** #ifdef GIMBAL_BOARD
+ 214:application/cmd/robot_cmd.c ****     if (switch_is_down(rc_data[TEMP].rc.switch_right))      
+ 215:application/cmd/robot_cmd.c ****     {   // 左侧开关状态不为[下],右侧开关状态为[下],底盘编码器控制,云台无
+ 216:application/cmd/robot_cmd.c ****         gimbal_cmd_send.gimbal_mode = GIMBAL_ZERO_FORCE;
+ 217:application/cmd/robot_cmd.c ****     }
+ 218:application/cmd/robot_cmd.c **** 
+ 219:application/cmd/robot_cmd.c ****     if (switch_is_mid(rc_data[TEMP].rc.switch_right))      
+ 220:application/cmd/robot_cmd.c ****     {   // 左侧开关状态不为[下],右侧开关状态为[下],底盘编码器控制,云台无
+ 221:application/cmd/robot_cmd.c ****         gimbal_cmd_send.gimbal_mode = GIMBAL_GYRO_MODE;
+ 222:application/cmd/robot_cmd.c ****     }
+ 223:application/cmd/robot_cmd.c **** #endif
+ 224:application/cmd/robot_cmd.c **** 
+ 225:application/cmd/robot_cmd.c ****     // 云台陀螺仪模式,并且视觉未识别到目标,纯遥控器拨杆控制
+ 226:application/cmd/robot_cmd.c ****     add_yaw = 0.002f * (float)rc_data[TEMP].rc.rocker_l_;
+ 212              		.loc 1 226 5 is_stmt 1 view .LVU60
+ 213              		.loc 1 226 47 is_stmt 0 view .LVU61
+ 214 0016 B3F90020 		ldrsh	r2, [r3]
+ 215 001a 07EE102A 		vmov	s14, r2	@ int
+ 216              		.loc 1 226 24 view .LVU62
+ 217 001e B8EEC77A 		vcvt.f32.s32	s14, s14
+ 218              		.loc 1 226 22 view .LVU63
+ 219 0022 DFED707A 		vldr.32	s15, .L53+4
+ 220 0026 27EE277A 		vmul.f32	s14, s14, s15
+ 221              		.loc 1 226 13 view .LVU64
+ 222 002a 6F4A     		ldr	r2, .L53+8
+ 223 002c 82ED007A 		vstr.32	s14, [r2]
+ 227:application/cmd/robot_cmd.c ****     add_pitch = 0.001f * (float)rc_data[TEMP].rc.rocker_l1;
+ 224              		.loc 1 227 5 is_stmt 1 view .LVU65
+ 225              		.loc 1 227 49 is_stmt 0 view .LVU66
+ 226 0030 B3F90220 		ldrsh	r2, [r3, #2]
+ 227 0034 07EE902A 		vmov	s15, r2	@ int
+ 228              		.loc 1 227 26 view .LVU67
+ 229 0038 F8EEE77A 		vcvt.f32.s32	s15, s15
+ 230              		.loc 1 227 24 view .LVU68
+ 231 003c DFED6B6A 		vldr.32	s13, .L53+12
+ 232 0040 67EEA67A 		vmul.f32	s15, s15, s13
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 9
+
+
+ 233              		.loc 1 227 15 view .LVU69
+ 234 0044 6A4A     		ldr	r2, .L53+16
+ 235 0046 C2ED007A 		vstr.32	s15, [r2]
+ 228:application/cmd/robot_cmd.c **** 
+ 229:application/cmd/robot_cmd.c ****     // if (robot_state == ROBOT_READY)
+ 230:application/cmd/robot_cmd.c ****     // { 
+ 231:application/cmd/robot_cmd.c ****         // if (gimbal_cmd_send.gimbal_mode == GIMBAL_GYRO_MODE && vision_recv_data->target_state ==
+ 232:application/cmd/robot_cmd.c ****         // { // 按照摇杆的输出大小进行角度增量,拨杆向右/向上为正
+ 233:application/cmd/robot_cmd.c ****         //     gimbal_cmd_send.yaw += add_yaw;
+ 234:application/cmd/robot_cmd.c ****         //     gimbal_cmd_send.pitch += add_pitch;   
+ 235:application/cmd/robot_cmd.c ****         // }
+ 236:application/cmd/robot_cmd.c ****         if (gimbal_cmd_send.gimbal_mode == GIMBAL_GYRO_MODE)
+ 236              		.loc 1 236 9 is_stmt 1 view .LVU70
+ 237              		.loc 1 236 28 is_stmt 0 view .LVU71
+ 238 004a 6A4A     		ldr	r2, .L53+20
+ 239 004c 127B     		ldrb	r2, [r2, #12]	@ zero_extendqisi2
+ 240              		.loc 1 236 12 view .LVU72
+ 241 004e 012A     		cmp	r2, #1
+ 242 0050 6CD0     		beq	.L45
+ 243              	.L35:
+ 237:application/cmd/robot_cmd.c ****         { // 按照摇杆的输出大小进行角度增量,拨杆向右/向上为正 
+ 238:application/cmd/robot_cmd.c ****             gimbal_cmd_send.yaw += add_yaw;
+ 239:application/cmd/robot_cmd.c ****             gimbal_cmd_send.pitch += add_pitch;   
+ 240:application/cmd/robot_cmd.c **** 
+ 241:application/cmd/robot_cmd.c ****             if (pc_recv_data->target_state == TARGET_CONVERGING)
+ 242:application/cmd/robot_cmd.c ****             {
+ 243:application/cmd/robot_cmd.c ****                 gimbal_cmd_send.yaw = -pc_recv_data->vision_data.yaw;
+ 244:application/cmd/robot_cmd.c ****                 gimbal_cmd_send.pitch = pc_recv_data->vision_data.pitch;  
+ 245:application/cmd/robot_cmd.c **** 
+ 246:application/cmd/robot_cmd.c ****                 add_yaw = -pc_recv_data->vision_data.yaw;
+ 247:application/cmd/robot_cmd.c ****                 add_pitch = pc_recv_data->vision_data.pitch;    
+ 248:application/cmd/robot_cmd.c ****             } 
+ 249:application/cmd/robot_cmd.c ****         }
+ 250:application/cmd/robot_cmd.c ****     // }
+ 251:application/cmd/robot_cmd.c **** 
+ 252:application/cmd/robot_cmd.c ****     // // 云台角度限幅,要放在增量以后
+ 253:application/cmd/robot_cmd.c ****     // LimitSetAngle(add_yaw, add_pitch);
+ 254:application/cmd/robot_cmd.c **** 
+ 255:application/cmd/robot_cmd.c ****     // 底盘参数,目前没有加入小陀螺(调试似乎暂时没有必要),系数为2.0m/s(经
+ 256:application/cmd/robot_cmd.c ****     chassis_cmd_send.vx = 0.2f / HALF_RC_CH_MAX * (float)rc_data[TEMP].rc.rocker_r_;    // 横移�
+ 244              		.loc 1 256 5 is_stmt 1 view .LVU73
+ 245              		.loc 1 256 74 is_stmt 0 view .LVU74
+ 246 0052 B3F90420 		ldrsh	r2, [r3, #4]
+ 247 0056 07EE902A 		vmov	s15, r2	@ int
+ 248              		.loc 1 256 51 view .LVU75
+ 249 005a F8EEE77A 		vcvt.f32.s32	s15, s15
+ 250              		.loc 1 256 49 view .LVU76
+ 251 005e 9FED667A 		vldr.32	s14, .L53+24
+ 252 0062 67EE877A 		vmul.f32	s15, s15, s14
+ 253              		.loc 1 256 25 view .LVU77
+ 254 0066 654A     		ldr	r2, .L53+28
+ 255 0068 C2ED007A 		vstr.32	s15, [r2]
+ 257:application/cmd/robot_cmd.c ****     chassis_cmd_send.wz = 0.1f / HALF_RC_CH_MAX * (float)rc_data[TEMP].rc.rocker_l_;  
+ 256              		.loc 1 257 5 is_stmt 1 view .LVU78
+ 257              		.loc 1 257 74 is_stmt 0 view .LVU79
+ 258 006c B3F90010 		ldrsh	r1, [r3]
+ 259 0070 07EE901A 		vmov	s15, r1	@ int
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 10
+
+
+ 260              		.loc 1 257 51 view .LVU80
+ 261 0074 F8EEE77A 		vcvt.f32.s32	s15, s15
+ 262              		.loc 1 257 49 view .LVU81
+ 263 0078 9FED617A 		vldr.32	s14, .L53+32
+ 264 007c 67EE877A 		vmul.f32	s15, s15, s14
+ 265              		.loc 1 257 25 view .LVU82
+ 266 0080 C2ED027A 		vstr.32	s15, [r2, #8]
+ 258:application/cmd/robot_cmd.c **** 
+ 259:application/cmd/robot_cmd.c ****     // 底盘imu数据
+ 260:application/cmd/robot_cmd.c ****     chassis_cmd_send.pitch = gimbal_fetch_data.gimbal_imu_data.Pitch * DEGREE_2_RAD;
+ 267              		.loc 1 260 5 is_stmt 1 view .LVU83
+ 268              		.loc 1 260 63 is_stmt 0 view .LVU84
+ 269 0084 5F49     		ldr	r1, .L53+36
+ 270 0086 D1ED077A 		vldr.32	s15, [r1, #28]
+ 271              		.loc 1 260 70 view .LVU85
+ 272 008a 9FED5F7A 		vldr.32	s14, .L53+40
+ 273              		.loc 1 260 28 view .LVU86
+ 274 008e 67EE877A 		vmul.f32	s15, s15, s14
+ 275 0092 17EE900A 		vmov	r0, s15	@ int
+ 276 0096 C2F81900 		str	r0, [r2, #25]	@ unaligned
+ 261:application/cmd/robot_cmd.c ****     chassis_cmd_send.yaw = gimbal_fetch_data.gimbal_imu_data.Yaw * DEGREE_2_RAD;
+ 277              		.loc 1 261 5 is_stmt 1 view .LVU87
+ 278              		.loc 1 261 61 is_stmt 0 view .LVU88
+ 279 009a D1ED087A 		vldr.32	s15, [r1, #32]
+ 280              		.loc 1 261 26 view .LVU89
+ 281 009e 67EE877A 		vmul.f32	s15, s15, s14
+ 282 00a2 17EE900A 		vmov	r0, s15	@ int
+ 283 00a6 C2F81D00 		str	r0, [r2, #29]	@ unaligned
+ 262:application/cmd/robot_cmd.c ****     chassis_cmd_send.pitch_gyro = gimbal_fetch_data.gimbal_imu_data.Gyro[0];
+ 284              		.loc 1 262 5 is_stmt 1 view .LVU90
+ 285              		.loc 1 262 33 is_stmt 0 view .LVU91
+ 286 00aa 0868     		ldr	r0, [r1]	@ float
+ 287 00ac C2F82500 		str	r0, [r2, #37]	@ unaligned
+ 263:application/cmd/robot_cmd.c ****     chassis_cmd_send.yaw_gyro = gimbal_fetch_data.gimbal_imu_data.Gyro[2];
+ 288              		.loc 1 263 5 is_stmt 1 view .LVU92
+ 289              		.loc 1 263 31 is_stmt 0 view .LVU93
+ 290 00b0 8868     		ldr	r0, [r1, #8]	@ float
+ 291 00b2 C2F82900 		str	r0, [r2, #41]	@ unaligned
+ 264:application/cmd/robot_cmd.c **** 
+ 265:application/cmd/robot_cmd.c ****     chassis_cmd_send.accel = gimbal_fetch_data.gimbal_imu_data.Accel[1];
+ 292              		.loc 1 265 5 is_stmt 1 view .LVU94
+ 293              		.loc 1 265 28 is_stmt 0 view .LVU95
+ 294 00b6 0969     		ldr	r1, [r1, #16]	@ float
+ 295 00b8 C2F83110 		str	r1, [r2, #49]	@ unaligned
+ 266:application/cmd/robot_cmd.c ****     // chassis_cmd_send.vx = 1.5f / HALF_RC_CH_MAX * (float)rc_data[TEMP].rc.rocker_r_;    // 横�
+ 267:application/cmd/robot_cmd.c ****     // chassis_cmd_send.vy = 3.5f / HALF_RC_CH_MAX * (float)rc_data[TEMP].rc.rocker_r1;    // 前�
+ 268:application/cmd/robot_cmd.c ****     // chassis_cmd_send.wz = 2.5f / HALF_RC_CH_MAX * (float)rc_data[TEMP].rc.rocker_l_;    // 旋�
+ 269:application/cmd/robot_cmd.c **** 
+ 270:application/cmd/robot_cmd.c ****     // chassis_cmd_send.vx = vision_recv_data->data.speed_vector.vx;
+ 271:application/cmd/robot_cmd.c ****     // chassis_cmd_send.vy = vision_recv_data->data.speed_vector.vy;
+ 272:application/cmd/robot_cmd.c ****     // chassis_cmd_send.wz = 0;
+ 273:application/cmd/robot_cmd.c ****     // chassis_cmd_send.wz = -vision_recv_data->data.speed_vector.wz;
+ 274:application/cmd/robot_cmd.c ****     // // 发射参数
+ 275:application/cmd/robot_cmd.c ****     // if (switch_is_mid(rc_data[TEMP].rc.switch_left)) // 右侧开关状态[上],弹舱打开
+ 276:application/cmd/robot_cmd.c ****     //     ;                                            // 弹舱舵机控制,待添加servo_motor�
+ 277:application/cmd/robot_cmd.c ****     // else
+ 278:application/cmd/robot_cmd.c ****     //     ; // 弹舱舵机控制,待添加servo_motor模块,关闭
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 11
+
+
+ 279:application/cmd/robot_cmd.c **** 
+ 280:application/cmd/robot_cmd.c ****     // 右侧开关[中],发射开启
+ 281:application/cmd/robot_cmd.c ****     if (switch_is_mid(rc_data[TEMP].rc.switch_right)) 
+ 296              		.loc 1 281 5 is_stmt 1 view .LVU96
+ 297              		.loc 1 281 9 is_stmt 0 view .LVU97
+ 298 00bc DA7A     		ldrb	r2, [r3, #11]	@ zero_extendqisi2
+ 299              		.loc 1 281 8 view .LVU98
+ 300 00be 032A     		cmp	r2, #3
+ 301 00c0 60D0     		beq	.L46
+ 302              	.L36:
+ 282:application/cmd/robot_cmd.c ****     {   // 快拨右侧开关[中]->右侧开关[上]->右侧开关[中],摩擦轮开启
+ 283:application/cmd/robot_cmd.c ****         shoot_cmd_send.shoot_mode = SHOOT_ON;
+ 284:application/cmd/robot_cmd.c ****         if (last_shoot_mode == SHOOT_OFF && shoot_cmd_send.friction_mode == FRICTION_ON)
+ 285:application/cmd/robot_cmd.c ****             shoot_cmd_send.friction_mode = FRICTION_OFF;
+ 286:application/cmd/robot_cmd.c ****         else if (last_shoot_mode == SHOOT_OFF && shoot_cmd_send.friction_mode != FRICTION_ON)
+ 287:application/cmd/robot_cmd.c ****             shoot_cmd_send.friction_mode = FRICTION_ON;
+ 288:application/cmd/robot_cmd.c ****             
+ 289:application/cmd/robot_cmd.c ****         // 侧拨轮下拨,转动拨盘
+ 290:application/cmd/robot_cmd.c ****         if (rc_data[TEMP].rc.dial > 500)
+ 291:application/cmd/robot_cmd.c ****             shoot_cmd_send.load_mode = LOAD_BURSTFIRE;
+ 292:application/cmd/robot_cmd.c ****         else
+ 293:application/cmd/robot_cmd.c ****             shoot_cmd_send.load_mode = LOAD_STOP;
+ 294:application/cmd/robot_cmd.c ****     }
+ 295:application/cmd/robot_cmd.c ****     
+ 296:application/cmd/robot_cmd.c ****     // 右侧开关[上],发射关闭
+ 297:application/cmd/robot_cmd.c ****     if (switch_is_up(rc_data[TEMP].rc.switch_right)) 
+ 303              		.loc 1 297 5 is_stmt 1 view .LVU99
+ 304              		.loc 1 297 8 is_stmt 0 view .LVU100
+ 305 00c2 012A     		cmp	r2, #1
+ 306 00c4 00F08480 		beq	.L47
+ 307              	.L40:
+ 298:application/cmd/robot_cmd.c ****     {
+ 299:application/cmd/robot_cmd.c ****         shoot_cmd_send.shoot_mode = SHOOT_OFF;
+ 300:application/cmd/robot_cmd.c ****     }
+ 301:application/cmd/robot_cmd.c **** 
+ 302:application/cmd/robot_cmd.c ****     // 左右侧开关均为[下],摩擦轮关闭
+ 303:application/cmd/robot_cmd.c ****     if (switch_is_down(rc_data[TEMP].rc.switch_right))
+ 308              		.loc 1 303 5 is_stmt 1 view .LVU101
+ 309              		.loc 1 303 8 is_stmt 0 view .LVU102
+ 310 00c8 022A     		cmp	r2, #2
+ 311 00ca 00F08580 		beq	.L48
+ 312              	.L41:
+ 304:application/cmd/robot_cmd.c ****     {
+ 305:application/cmd/robot_cmd.c ****         shoot_cmd_send.friction_mode = FRICTION_OFF;        
+ 306:application/cmd/robot_cmd.c ****     }
+ 307:application/cmd/robot_cmd.c ****     // 保留上一次发射模式
+ 308:application/cmd/robot_cmd.c ****     last_shoot_mode = shoot_cmd_send.shoot_mode;
+ 313              		.loc 1 308 5 is_stmt 1 view .LVU103
+ 314              		.loc 1 308 37 is_stmt 0 view .LVU104
+ 315 00ce 4F4B     		ldr	r3, .L53+44
+ 316 00d0 1978     		ldrb	r1, [r3]	@ zero_extendqisi2
+ 317              		.loc 1 308 21 view .LVU105
+ 318 00d2 4F4A     		ldr	r2, .L53+48
+ 319 00d4 1170     		strb	r1, [r2]
+ 309:application/cmd/robot_cmd.c **** 
+ 310:application/cmd/robot_cmd.c ****     // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
+ 311:application/cmd/robot_cmd.c ****     shoot_cmd_send.shoot_rate = 16;
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 12
+
+
+ 320              		.loc 1 311 5 is_stmt 1 view .LVU106
+ 321              		.loc 1 311 31 is_stmt 0 view .LVU107
+ 322 00d6 4FF08342 		mov	r2, #1098907648
+ 323 00da C3F80620 		str	r2, [r3, #6]	@ unaligned
+ 312:application/cmd/robot_cmd.c **** }
+ 324              		.loc 1 312 1 view .LVU108
+ 325 00de 7047     		bx	lr
+ 326              	.L42:
+ 184:application/cmd/robot_cmd.c ****         {
+ 327              		.loc 1 184 9 is_stmt 1 view .LVU109
+ 184:application/cmd/robot_cmd.c ****         {
+ 328              		.loc 1 184 14 is_stmt 0 view .LVU110
+ 329 00e0 DA7A     		ldrb	r2, [r3, #11]	@ zero_extendqisi2
+ 184:application/cmd/robot_cmd.c ****         {
+ 330              		.loc 1 184 12 view .LVU111
+ 331 00e2 022A     		cmp	r2, #2
+ 332 00e4 02D0     		beq	.L29
+ 186:application/cmd/robot_cmd.c ****         }
+ 333              		.loc 1 186 13 is_stmt 1 view .LVU112
+ 186:application/cmd/robot_cmd.c ****         }
+ 334              		.loc 1 186 41 is_stmt 0 view .LVU113
+ 335 00e6 434A     		ldr	r2, .L53+20
+ 336 00e8 0121     		movs	r1, #1
+ 337 00ea 1173     		strb	r1, [r2, #12]
+ 338              	.L29:
+ 188:application/cmd/robot_cmd.c ****     }
+ 339              		.loc 1 188 9 is_stmt 1 view .LVU114
+ 188:application/cmd/robot_cmd.c ****     }
+ 340              		.loc 1 188 39 is_stmt 0 view .LVU115
+ 341 00ec 434A     		ldr	r2, .L53+28
+ 342 00ee 0021     		movs	r1, #0
+ 343 00f0 1175     		strb	r1, [r2, #20]
+ 344 00f2 8AE7     		b	.L28
+ 345              	.L43:
+ 193:application/cmd/robot_cmd.c ****         {
+ 346              		.loc 1 193 9 is_stmt 1 view .LVU116
+ 193:application/cmd/robot_cmd.c ****         {
+ 347              		.loc 1 193 14 is_stmt 0 view .LVU117
+ 348 00f4 9A7A     		ldrb	r2, [r3, #10]	@ zero_extendqisi2
+ 193:application/cmd/robot_cmd.c ****         {
+ 349              		.loc 1 193 12 view .LVU118
+ 350 00f6 022A     		cmp	r2, #2
+ 351 00f8 02D0     		beq	.L31
+ 195:application/cmd/robot_cmd.c ****         }
+ 352              		.loc 1 195 13 is_stmt 1 view .LVU119
+ 195:application/cmd/robot_cmd.c ****         }
+ 353              		.loc 1 195 43 is_stmt 0 view .LVU120
+ 354 00fa 404A     		ldr	r2, .L53+28
+ 355 00fc 0221     		movs	r1, #2
+ 356 00fe 1175     		strb	r1, [r2, #20]
+ 357              	.L31:
+ 197:application/cmd/robot_cmd.c ****     }
+ 358              		.loc 1 197 9 is_stmt 1 view .LVU121
+ 197:application/cmd/robot_cmd.c ****     }
+ 359              		.loc 1 197 37 is_stmt 0 view .LVU122
+ 360 0100 3C4A     		ldr	r2, .L53+20
+ 361 0102 0021     		movs	r1, #0
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 13
+
+
+ 362 0104 1173     		strb	r1, [r2, #12]
+ 363 0106 83E7     		b	.L30
+ 364              	.L44:
+ 203:application/cmd/robot_cmd.c ****             chassis_cmd_send.chassis_mode = CHASSIS_FOLLOW_GIMBAL_YAW;
+ 365              		.loc 1 203 9 is_stmt 1 view .LVU123
+ 203:application/cmd/robot_cmd.c ****             chassis_cmd_send.chassis_mode = CHASSIS_FOLLOW_GIMBAL_YAW;
+ 366              		.loc 1 203 13 is_stmt 0 view .LVU124
+ 367 0108 9A7A     		ldrb	r2, [r3, #10]	@ zero_extendqisi2
+ 203:application/cmd/robot_cmd.c ****             chassis_cmd_send.chassis_mode = CHASSIS_FOLLOW_GIMBAL_YAW;
+ 368              		.loc 1 203 12 view .LVU125
+ 369 010a 032A     		cmp	r2, #3
+ 370 010c 06D0     		beq	.L49
+ 371              	.L33:
+ 207:application/cmd/robot_cmd.c ****             chassis_cmd_send.chassis_mode = CHASSIS_ROTATE;
+ 372              		.loc 1 207 9 is_stmt 1 view .LVU126
+ 207:application/cmd/robot_cmd.c ****             chassis_cmd_send.chassis_mode = CHASSIS_ROTATE;
+ 373              		.loc 1 207 13 is_stmt 0 view .LVU127
+ 374 010e 9A7A     		ldrb	r2, [r3, #10]	@ zero_extendqisi2
+ 207:application/cmd/robot_cmd.c ****             chassis_cmd_send.chassis_mode = CHASSIS_ROTATE;
+ 375              		.loc 1 207 12 view .LVU128
+ 376 0110 012A     		cmp	r2, #1
+ 377 0112 07D0     		beq	.L50
+ 378              	.L34:
+ 210:application/cmd/robot_cmd.c ****     }
+ 379              		.loc 1 210 9 is_stmt 1 view .LVU129
+ 210:application/cmd/robot_cmd.c ****     }
+ 380              		.loc 1 210 37 is_stmt 0 view .LVU130
+ 381 0114 374A     		ldr	r2, .L53+20
+ 382 0116 0121     		movs	r1, #1
+ 383 0118 1173     		strb	r1, [r2, #12]
+ 384 011a 7CE7     		b	.L32
+ 385              	.L49:
+ 204:application/cmd/robot_cmd.c **** 
+ 386              		.loc 1 204 13 is_stmt 1 view .LVU131
+ 204:application/cmd/robot_cmd.c **** 
+ 387              		.loc 1 204 43 is_stmt 0 view .LVU132
+ 388 011c 374A     		ldr	r2, .L53+28
+ 389 011e 0321     		movs	r1, #3
+ 390 0120 1175     		strb	r1, [r2, #20]
+ 391 0122 F4E7     		b	.L33
+ 392              	.L50:
+ 208:application/cmd/robot_cmd.c ****         
+ 393              		.loc 1 208 13 is_stmt 1 view .LVU133
+ 208:application/cmd/robot_cmd.c ****         
+ 394              		.loc 1 208 43 is_stmt 0 view .LVU134
+ 395 0124 354A     		ldr	r2, .L53+28
+ 396 0126 0121     		movs	r1, #1
+ 397 0128 1175     		strb	r1, [r2, #20]
+ 398 012a F3E7     		b	.L34
+ 399              	.L45:
+ 238:application/cmd/robot_cmd.c ****             gimbal_cmd_send.pitch += add_pitch;   
+ 400              		.loc 1 238 13 is_stmt 1 view .LVU135
+ 238:application/cmd/robot_cmd.c ****             gimbal_cmd_send.pitch += add_pitch;   
+ 401              		.loc 1 238 28 is_stmt 0 view .LVU136
+ 402 012c 314A     		ldr	r2, .L53+20
+ 403 012e D2ED006A 		vldr.32	s13, [r2]
+ 238:application/cmd/robot_cmd.c ****             gimbal_cmd_send.pitch += add_pitch;   
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 14
+
+
+ 404              		.loc 1 238 33 view .LVU137
+ 405 0132 37EE267A 		vadd.f32	s14, s14, s13
+ 406 0136 82ED007A 		vstr.32	s14, [r2]
+ 239:application/cmd/robot_cmd.c **** 
+ 407              		.loc 1 239 13 is_stmt 1 view .LVU138
+ 239:application/cmd/robot_cmd.c **** 
+ 408              		.loc 1 239 28 is_stmt 0 view .LVU139
+ 409 013a 92ED017A 		vldr.32	s14, [r2, #4]
+ 239:application/cmd/robot_cmd.c **** 
+ 410              		.loc 1 239 35 view .LVU140
+ 411 013e 77EE877A 		vadd.f32	s15, s15, s14
+ 412 0142 C2ED017A 		vstr.32	s15, [r2, #4]
+ 241:application/cmd/robot_cmd.c ****             {
+ 413              		.loc 1 241 13 is_stmt 1 view .LVU141
+ 241:application/cmd/robot_cmd.c ****             {
+ 414              		.loc 1 241 29 is_stmt 0 view .LVU142
+ 415 0146 334A     		ldr	r2, .L53+52
+ 416 0148 1268     		ldr	r2, [r2]
+ 417 014a 5178     		ldrb	r1, [r2, #1]	@ zero_extendqisi2
+ 241:application/cmd/robot_cmd.c ****             {
+ 418              		.loc 1 241 16 view .LVU143
+ 419 014c 0129     		cmp	r1, #1
+ 420 014e 80D1     		bne	.L35
+ 243:application/cmd/robot_cmd.c ****                 gimbal_cmd_send.pitch = pc_recv_data->vision_data.pitch;  
+ 421              		.loc 1 243 17 is_stmt 1 view .LVU144
+ 243:application/cmd/robot_cmd.c ****                 gimbal_cmd_send.pitch = pc_recv_data->vision_data.pitch;  
+ 422              		.loc 1 243 65 is_stmt 0 view .LVU145
+ 423 0150 D2F80610 		ldr	r1, [r2, #6]	@ unaligned
+ 243:application/cmd/robot_cmd.c ****                 gimbal_cmd_send.pitch = pc_recv_data->vision_data.pitch;  
+ 424              		.loc 1 243 39 view .LVU146
+ 425 0154 07EE901A 		vmov	s15, r1
+ 426 0158 F1EE677A 		vneg.f32	s15, s15
+ 243:application/cmd/robot_cmd.c ****                 gimbal_cmd_send.pitch = pc_recv_data->vision_data.pitch;  
+ 427              		.loc 1 243 37 view .LVU147
+ 428 015c 2549     		ldr	r1, .L53+20
+ 429 015e C1ED007A 		vstr.32	s15, [r1]
+ 244:application/cmd/robot_cmd.c **** 
+ 430              		.loc 1 244 17 is_stmt 1 view .LVU148
+ 244:application/cmd/robot_cmd.c **** 
+ 431              		.loc 1 244 66 is_stmt 0 view .LVU149
+ 432 0162 D2F80200 		ldr	r0, [r2, #2]	@ unaligned
+ 244:application/cmd/robot_cmd.c **** 
+ 433              		.loc 1 244 39 view .LVU150
+ 434 0166 4860     		str	r0, [r1, #4]	@ float
+ 246:application/cmd/robot_cmd.c ****                 add_pitch = pc_recv_data->vision_data.pitch;    
+ 435              		.loc 1 246 17 is_stmt 1 view .LVU151
+ 246:application/cmd/robot_cmd.c ****                 add_pitch = pc_recv_data->vision_data.pitch;    
+ 436              		.loc 1 246 53 is_stmt 0 view .LVU152
+ 437 0168 D2F80610 		ldr	r1, [r2, #6]	@ unaligned
+ 246:application/cmd/robot_cmd.c ****                 add_pitch = pc_recv_data->vision_data.pitch;    
+ 438              		.loc 1 246 27 view .LVU153
+ 439 016c 07EE901A 		vmov	s15, r1
+ 440 0170 F1EE677A 		vneg.f32	s15, s15
+ 246:application/cmd/robot_cmd.c ****                 add_pitch = pc_recv_data->vision_data.pitch;    
+ 441              		.loc 1 246 25 view .LVU154
+ 442 0174 1C49     		ldr	r1, .L53+8
+ 443 0176 C1ED007A 		vstr.32	s15, [r1]
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 15
+
+
+ 247:application/cmd/robot_cmd.c ****             } 
+ 444              		.loc 1 247 17 is_stmt 1 view .LVU155
+ 247:application/cmd/robot_cmd.c ****             } 
+ 445              		.loc 1 247 54 is_stmt 0 view .LVU156
+ 446 017a D2F80210 		ldr	r1, [r2, #2]	@ unaligned
+ 247:application/cmd/robot_cmd.c ****             } 
+ 447              		.loc 1 247 27 view .LVU157
+ 448 017e 1C4A     		ldr	r2, .L53+16
+ 449 0180 1160     		str	r1, [r2]	@ float
+ 450 0182 66E7     		b	.L35
+ 451              	.L46:
+ 283:application/cmd/robot_cmd.c ****         if (last_shoot_mode == SHOOT_OFF && shoot_cmd_send.friction_mode == FRICTION_ON)
+ 452              		.loc 1 283 9 is_stmt 1 view .LVU158
+ 283:application/cmd/robot_cmd.c ****         if (last_shoot_mode == SHOOT_OFF && shoot_cmd_send.friction_mode == FRICTION_ON)
+ 453              		.loc 1 283 35 is_stmt 0 view .LVU159
+ 454 0184 2149     		ldr	r1, .L53+44
+ 455 0186 0220     		movs	r0, #2
+ 456 0188 0870     		strb	r0, [r1]
+ 284:application/cmd/robot_cmd.c ****             shoot_cmd_send.friction_mode = FRICTION_OFF;
+ 457              		.loc 1 284 9 is_stmt 1 view .LVU160
+ 284:application/cmd/robot_cmd.c ****             shoot_cmd_send.friction_mode = FRICTION_OFF;
+ 458              		.loc 1 284 29 is_stmt 0 view .LVU161
+ 459 018a 2149     		ldr	r1, .L53+48
+ 460 018c 0978     		ldrb	r1, [r1]	@ zero_extendqisi2
+ 284:application/cmd/robot_cmd.c ****             shoot_cmd_send.friction_mode = FRICTION_OFF;
+ 461              		.loc 1 284 12 view .LVU162
+ 462 018e 0129     		cmp	r1, #1
+ 463 0190 0AD0     		beq	.L51
+ 464              	.L37:
+ 286:application/cmd/robot_cmd.c ****             shoot_cmd_send.friction_mode = FRICTION_ON;
+ 465              		.loc 1 286 14 is_stmt 1 view .LVU163
+ 286:application/cmd/robot_cmd.c ****             shoot_cmd_send.friction_mode = FRICTION_ON;
+ 466              		.loc 1 286 17 is_stmt 0 view .LVU164
+ 467 0192 0129     		cmp	r1, #1
+ 468 0194 10D0     		beq	.L52
+ 469              	.L38:
+ 290:application/cmd/robot_cmd.c ****             shoot_cmd_send.load_mode = LOAD_BURSTFIRE;
+ 470              		.loc 1 290 9 is_stmt 1 view .LVU165
+ 290:application/cmd/robot_cmd.c ****             shoot_cmd_send.load_mode = LOAD_BURSTFIRE;
+ 471              		.loc 1 290 29 is_stmt 0 view .LVU166
+ 472 0196 B3F90830 		ldrsh	r3, [r3, #8]
+ 290:application/cmd/robot_cmd.c ****             shoot_cmd_send.load_mode = LOAD_BURSTFIRE;
+ 473              		.loc 1 290 12 view .LVU167
+ 474 019a B3F5FA7F 		cmp	r3, #500
+ 475 019e 13DD     		ble	.L39
+ 291:application/cmd/robot_cmd.c ****         else
+ 476              		.loc 1 291 13 is_stmt 1 view .LVU168
+ 291:application/cmd/robot_cmd.c ****         else
+ 477              		.loc 1 291 38 is_stmt 0 view .LVU169
+ 478 01a0 1A4B     		ldr	r3, .L53+44
+ 479 01a2 0421     		movs	r1, #4
+ 480 01a4 5970     		strb	r1, [r3, #1]
+ 481 01a6 8CE7     		b	.L36
+ 482              	.L51:
+ 284:application/cmd/robot_cmd.c ****             shoot_cmd_send.friction_mode = FRICTION_OFF;
+ 483              		.loc 1 284 59 discriminator 1 view .LVU170
+ 484 01a8 1848     		ldr	r0, .L53+44
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 16
+
+
+ 485 01aa C078     		ldrb	r0, [r0, #3]	@ zero_extendqisi2
+ 284:application/cmd/robot_cmd.c ****             shoot_cmd_send.friction_mode = FRICTION_OFF;
+ 486              		.loc 1 284 42 discriminator 1 view .LVU171
+ 487 01ac 0128     		cmp	r0, #1
+ 488 01ae F0D1     		bne	.L37
+ 285:application/cmd/robot_cmd.c ****         else if (last_shoot_mode == SHOOT_OFF && shoot_cmd_send.friction_mode != FRICTION_ON)
+ 489              		.loc 1 285 13 is_stmt 1 view .LVU172
+ 285:application/cmd/robot_cmd.c ****         else if (last_shoot_mode == SHOOT_OFF && shoot_cmd_send.friction_mode != FRICTION_ON)
+ 490              		.loc 1 285 42 is_stmt 0 view .LVU173
+ 491 01b0 1649     		ldr	r1, .L53+44
+ 492 01b2 0020     		movs	r0, #0
+ 493 01b4 C870     		strb	r0, [r1, #3]
+ 494 01b6 EEE7     		b	.L38
+ 495              	.L52:
+ 286:application/cmd/robot_cmd.c ****             shoot_cmd_send.friction_mode = FRICTION_ON;
+ 496              		.loc 1 286 64 discriminator 1 view .LVU174
+ 497 01b8 1449     		ldr	r1, .L53+44
+ 498 01ba C978     		ldrb	r1, [r1, #3]	@ zero_extendqisi2
+ 286:application/cmd/robot_cmd.c ****             shoot_cmd_send.friction_mode = FRICTION_ON;
+ 499              		.loc 1 286 47 discriminator 1 view .LVU175
+ 500 01bc 0129     		cmp	r1, #1
+ 501 01be EAD0     		beq	.L38
+ 287:application/cmd/robot_cmd.c ****             
+ 502              		.loc 1 287 13 is_stmt 1 view .LVU176
+ 287:application/cmd/robot_cmd.c ****             
+ 503              		.loc 1 287 42 is_stmt 0 view .LVU177
+ 504 01c0 1249     		ldr	r1, .L53+44
+ 505 01c2 0120     		movs	r0, #1
+ 506 01c4 C870     		strb	r0, [r1, #3]
+ 507 01c6 E6E7     		b	.L38
+ 508              	.L39:
+ 293:application/cmd/robot_cmd.c ****     }
+ 509              		.loc 1 293 13 is_stmt 1 view .LVU178
+ 293:application/cmd/robot_cmd.c ****     }
+ 510              		.loc 1 293 38 is_stmt 0 view .LVU179
+ 511 01c8 104B     		ldr	r3, .L53+44
+ 512 01ca 0021     		movs	r1, #0
+ 513 01cc 5970     		strb	r1, [r3, #1]
+ 514 01ce 78E7     		b	.L36
+ 515              	.L47:
+ 299:application/cmd/robot_cmd.c ****     }
+ 516              		.loc 1 299 9 is_stmt 1 view .LVU180
+ 299:application/cmd/robot_cmd.c ****     }
+ 517              		.loc 1 299 35 is_stmt 0 view .LVU181
+ 518 01d0 0E4B     		ldr	r3, .L53+44
+ 519 01d2 0121     		movs	r1, #1
+ 520 01d4 1970     		strb	r1, [r3]
+ 521 01d6 77E7     		b	.L40
+ 522              	.L48:
+ 305:application/cmd/robot_cmd.c ****     }
+ 523              		.loc 1 305 9 is_stmt 1 view .LVU182
+ 305:application/cmd/robot_cmd.c ****     }
+ 524              		.loc 1 305 38 is_stmt 0 view .LVU183
+ 525 01d8 0C4B     		ldr	r3, .L53+44
+ 526 01da 0022     		movs	r2, #0
+ 527 01dc DA70     		strb	r2, [r3, #3]
+ 528 01de 76E7     		b	.L41
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 17
+
+
+ 529              	.L54:
+ 530              		.align	2
+ 531              	.L53:
+ 532 01e0 00000000 		.word	rc_data
+ 533 01e4 6F12033B 		.word	990057071
+ 534 01e8 00000000 		.word	add_yaw.2
+ 535 01ec 6F12833A 		.word	981668463
+ 536 01f0 00000000 		.word	add_pitch.1
+ 537 01f4 00000000 		.word	gimbal_cmd_send
+ 538 01f8 0AE09E39 		.word	966713354
+ 539 01fc 00000000 		.word	chassis_cmd_send
+ 540 0200 0AE01E39 		.word	958324746
+ 541 0204 00000000 		.word	gimbal_fetch_data
+ 542 0208 35FA8E3C 		.word	1016003125
+ 543 020c 00000000 		.word	shoot_cmd_send
+ 544 0210 00000000 		.word	last_shoot_mode.0
+ 545 0214 00000000 		.word	pc_recv_data
+ 546              		.cfi_endproc
+ 547              	.LFE279:
+ 549              		.section	.text.MouseKeySet,"ax",%progbits
+ 550              		.align	1
+ 551              		.syntax unified
+ 552              		.thumb
+ 553              		.thumb_func
+ 555              	MouseKeySet:
+ 556              	.LFB280:
+ 313:application/cmd/robot_cmd.c **** 
+ 314:application/cmd/robot_cmd.c **** /**
+ 315:application/cmd/robot_cmd.c ****  * @brief 输入为键鼠时模式和控制量设置
+ 316:application/cmd/robot_cmd.c ****  *
+ 317:application/cmd/robot_cmd.c ****  */
+ 318:application/cmd/robot_cmd.c **** static void MouseKeySet()
+ 319:application/cmd/robot_cmd.c **** {
+ 557              		.loc 1 319 1 is_stmt 1 view -0
+ 558              		.cfi_startproc
+ 559              		@ args = 0, pretend = 0, frame = 0
+ 560              		@ frame_needed = 0, uses_anonymous_args = 0
+ 561              		@ link register save eliminated.
+ 320:application/cmd/robot_cmd.c ****     static float add_yaw, add_pitch; // 角度增量
+ 562              		.loc 1 320 5 view .LVU185
+ 321:application/cmd/robot_cmd.c ****     add_yaw = (float)rc_data[TEMP].mouse.x / 660 * 10; // 系数待测
+ 563              		.loc 1 321 5 view .LVU186
+ 564              		.loc 1 321 29 is_stmt 0 view .LVU187
+ 565 0000 584B     		ldr	r3, .L74
+ 566 0002 1968     		ldr	r1, [r3]
+ 567              		.loc 1 321 41 view .LVU188
+ 568 0004 B1F90C30 		ldrsh	r3, [r1, #12]
+ 569 0008 07EE903A 		vmov	s15, r3	@ int
+ 570              		.loc 1 321 15 view .LVU189
+ 571 000c F8EEE77A 		vcvt.f32.s32	s15, s15
+ 572              		.loc 1 321 44 view .LVU190
+ 573 0010 DFED555A 		vldr.32	s11, .L74+4
+ 574 0014 C7EEA56A 		vdiv.f32	s13, s15, s11
+ 575              		.loc 1 321 50 view .LVU191
+ 576 0018 B2EE046A 		vmov.f32	s12, #1.0e+1
+ 577 001c 66EE866A 		vmul.f32	s13, s13, s12
+ 578              		.loc 1 321 13 view .LVU192
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 18
+
+
+ 579 0020 524B     		ldr	r3, .L74+8
+ 580 0022 C3ED006A 		vstr.32	s13, [r3]
+ 322:application/cmd/robot_cmd.c ****     add_pitch = -(float)rc_data[TEMP].mouse.y / 660 * 10;
+ 581              		.loc 1 322 5 is_stmt 1 view .LVU193
+ 582              		.loc 1 322 44 is_stmt 0 view .LVU194
+ 583 0026 B1F90E30 		ldrsh	r3, [r1, #14]
+ 584 002a 07EE903A 		vmov	s15, r3	@ int
+ 585              		.loc 1 322 18 view .LVU195
+ 586 002e F8EEE77A 		vcvt.f32.s32	s15, s15
+ 587              		.loc 1 322 17 view .LVU196
+ 588 0032 F1EE677A 		vneg.f32	s15, s15
+ 589              		.loc 1 322 47 view .LVU197
+ 590 0036 87EEA57A 		vdiv.f32	s14, s15, s11
+ 591              		.loc 1 322 53 view .LVU198
+ 592 003a 27EE067A 		vmul.f32	s14, s14, s12
+ 593              		.loc 1 322 15 view .LVU199
+ 594 003e 4C4B     		ldr	r3, .L74+12
+ 595 0040 83ED007A 		vstr.32	s14, [r3]
+ 323:application/cmd/robot_cmd.c **** 
+ 324:application/cmd/robot_cmd.c ****     chassis_cmd_send.vx = rc_data[TEMP].key[KEY_PRESS].a * 300 - rc_data[TEMP].key[KEY_PRESS].d * 3
+ 596              		.loc 1 324 5 is_stmt 1 view .LVU200
+ 597              		.loc 1 324 55 is_stmt 0 view .LVU201
+ 598 0044 8A7C     		ldrb	r2, [r1, #18]	@ zero_extendqisi2
+ 599 0046 C2F3C003 		ubfx	r3, r2, #3, #1
+ 600              		.loc 1 324 94 view .LVU202
+ 601 004a C2F38000 		ubfx	r0, r2, #2, #1
+ 602              		.loc 1 324 64 view .LVU203
+ 603 004e 1B1A     		subs	r3, r3, r0
+ 604 0050 4FF4967C 		mov	ip, #300
+ 605 0054 0CFB03F3 		mul	r3, ip, r3
+ 606              		.loc 1 324 25 view .LVU204
+ 607 0058 4648     		ldr	r0, .L74+16
+ 608 005a 07EE903A 		vmov	s15, r3	@ int
+ 609 005e F8EEE77A 		vcvt.f32.s32	s15, s15
+ 610 0062 C0ED007A 		vstr.32	s15, [r0]
+ 325:application/cmd/robot_cmd.c ****     chassis_cmd_send.vy = rc_data[TEMP].key[KEY_PRESS].w * 300 - rc_data[TEMP].key[KEY_PRESS].s * 3
+ 611              		.loc 1 325 5 is_stmt 1 view .LVU205
+ 612              		.loc 1 325 55 is_stmt 0 view .LVU206
+ 613 0066 02F00103 		and	r3, r2, #1
+ 614              		.loc 1 325 94 view .LVU207
+ 615 006a C2F34002 		ubfx	r2, r2, #1, #1
+ 616              		.loc 1 325 64 view .LVU208
+ 617 006e 9B1A     		subs	r3, r3, r2
+ 618 0070 0CFB03F3 		mul	r3, ip, r3
+ 619              		.loc 1 325 25 view .LVU209
+ 620 0074 07EE903A 		vmov	s15, r3	@ int
+ 621 0078 F8EEE77A 		vcvt.f32.s32	s15, s15
+ 622 007c C0ED017A 		vstr.32	s15, [r0, #4]
+ 326:application/cmd/robot_cmd.c **** 
+ 327:application/cmd/robot_cmd.c ****     gimbal_cmd_send.yaw += add_yaw;
+ 623              		.loc 1 327 5 is_stmt 1 view .LVU210
+ 624              		.loc 1 327 20 is_stmt 0 view .LVU211
+ 625 0080 3D4B     		ldr	r3, .L74+20
+ 626 0082 D3ED007A 		vldr.32	s15, [r3]
+ 627              		.loc 1 327 25 view .LVU212
+ 628 0086 76EEA76A 		vadd.f32	s13, s13, s15
+ 629 008a C3ED006A 		vstr.32	s13, [r3]
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 19
+
+
+ 328:application/cmd/robot_cmd.c ****     gimbal_cmd_send.pitch += add_pitch;
+ 630              		.loc 1 328 5 is_stmt 1 view .LVU213
+ 631              		.loc 1 328 20 is_stmt 0 view .LVU214
+ 632 008e D3ED017A 		vldr.32	s15, [r3, #4]
+ 633              		.loc 1 328 27 view .LVU215
+ 634 0092 37EE277A 		vadd.f32	s14, s14, s15
+ 635 0096 83ED017A 		vstr.32	s14, [r3, #4]
+ 329:application/cmd/robot_cmd.c **** 
+ 330:application/cmd/robot_cmd.c ****     if (pc_recv_data->target_state == TARGET_CONVERGING)
+ 636              		.loc 1 330 5 is_stmt 1 view .LVU216
+ 637              		.loc 1 330 21 is_stmt 0 view .LVU217
+ 638 009a 384B     		ldr	r3, .L74+24
+ 639 009c 1B68     		ldr	r3, [r3]
+ 640 009e 5A78     		ldrb	r2, [r3, #1]	@ zero_extendqisi2
+ 641              		.loc 1 330 8 view .LVU218
+ 642 00a0 012A     		cmp	r2, #1
+ 643 00a2 0CD0     		beq	.L72
+ 644              	.L56:
+ 331:application/cmd/robot_cmd.c ****     {
+ 332:application/cmd/robot_cmd.c ****         gimbal_cmd_send.yaw = -pc_recv_data->vision_data.yaw;
+ 333:application/cmd/robot_cmd.c ****         gimbal_cmd_send.pitch = pc_recv_data->vision_data.pitch;  
+ 334:application/cmd/robot_cmd.c **** 
+ 335:application/cmd/robot_cmd.c ****         add_yaw = -pc_recv_data->vision_data.yaw;
+ 336:application/cmd/robot_cmd.c ****         add_pitch = pc_recv_data->vision_data.pitch;    
+ 337:application/cmd/robot_cmd.c ****     } 
+ 338:application/cmd/robot_cmd.c **** 
+ 339:application/cmd/robot_cmd.c ****     // // 云台角度限幅,要放在增量以后
+ 340:application/cmd/robot_cmd.c ****     // LimitSetAngle(add_yaw, add_pitch);
+ 341:application/cmd/robot_cmd.c **** 
+ 342:application/cmd/robot_cmd.c ****     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 2) // G键设置模式
+ 645              		.loc 1 342 5 is_stmt 1 view .LVU219
+ 646              		.loc 1 342 47 is_stmt 0 view .LVU220
+ 647 00a4 91F82230 		ldrb	r3, [r1, #34]	@ zero_extendqisi2
+ 648              		.loc 1 342 5 view .LVU221
+ 649 00a8 13F00103 		ands	r3, r3, #1
+ 650 00ac 21D0     		beq	.L57
+ 651 00ae 93BB     		cbnz	r3, .L58
+ 343:application/cmd/robot_cmd.c ****     {
+ 344:application/cmd/robot_cmd.c ****     case 0:
+ 345:application/cmd/robot_cmd.c ****         chassis_cmd_send.chassis_mode = CHASSIS_FOLLOW_GIMBAL_YAW;
+ 346:application/cmd/robot_cmd.c ****         gimbal_cmd_send.gimbal_mode = GIMBAL_GYRO_MODE;
+ 347:application/cmd/robot_cmd.c ****         break;
+ 348:application/cmd/robot_cmd.c ****     case 1:
+ 349:application/cmd/robot_cmd.c ****         chassis_cmd_send.chassis_mode = CHASSIS_ROTATE;
+ 350:application/cmd/robot_cmd.c ****         gimbal_cmd_send.gimbal_mode = GIMBAL_GYRO_MODE;
+ 351:application/cmd/robot_cmd.c ****         break;
+ 352:application/cmd/robot_cmd.c ****     default:
+ 353:application/cmd/robot_cmd.c ****         chassis_cmd_send.chassis_mode = CHASSIS_FOLLOW_GIMBAL_YAW;
+ 652              		.loc 1 353 9 is_stmt 1 view .LVU222
+ 653              		.loc 1 353 39 is_stmt 0 view .LVU223
+ 654 00b0 304B     		ldr	r3, .L74+16
+ 655 00b2 0322     		movs	r2, #3
+ 656 00b4 1A75     		strb	r2, [r3, #20]
+ 354:application/cmd/robot_cmd.c ****         gimbal_cmd_send.gimbal_mode = GIMBAL_GYRO_MODE;
+ 657              		.loc 1 354 9 is_stmt 1 view .LVU224
+ 658              		.loc 1 354 37 is_stmt 0 view .LVU225
+ 659 00b6 304B     		ldr	r3, .L74+20
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 20
+
+
+ 660 00b8 0122     		movs	r2, #1
+ 661 00ba 1A73     		strb	r2, [r3, #12]
+ 355:application/cmd/robot_cmd.c ****         break;
+ 662              		.loc 1 355 9 is_stmt 1 view .LVU226
+ 663 00bc 1FE0     		b	.L60
+ 664              	.L72:
+ 332:application/cmd/robot_cmd.c ****         gimbal_cmd_send.pitch = pc_recv_data->vision_data.pitch;  
+ 665              		.loc 1 332 9 view .LVU227
+ 332:application/cmd/robot_cmd.c ****         gimbal_cmd_send.pitch = pc_recv_data->vision_data.pitch;  
+ 666              		.loc 1 332 57 is_stmt 0 view .LVU228
+ 667 00be D3F80620 		ldr	r2, [r3, #6]	@ unaligned
+ 332:application/cmd/robot_cmd.c ****         gimbal_cmd_send.pitch = pc_recv_data->vision_data.pitch;  
+ 668              		.loc 1 332 31 view .LVU229
+ 669 00c2 07EE902A 		vmov	s15, r2
+ 670 00c6 F1EE677A 		vneg.f32	s15, s15
+ 332:application/cmd/robot_cmd.c ****         gimbal_cmd_send.pitch = pc_recv_data->vision_data.pitch;  
+ 671              		.loc 1 332 29 view .LVU230
+ 672 00ca 2B4A     		ldr	r2, .L74+20
+ 673 00cc C2ED007A 		vstr.32	s15, [r2]
+ 333:application/cmd/robot_cmd.c **** 
+ 674              		.loc 1 333 9 is_stmt 1 view .LVU231
+ 333:application/cmd/robot_cmd.c **** 
+ 675              		.loc 1 333 58 is_stmt 0 view .LVU232
+ 676 00d0 D3F80200 		ldr	r0, [r3, #2]	@ unaligned
+ 333:application/cmd/robot_cmd.c **** 
+ 677              		.loc 1 333 31 view .LVU233
+ 678 00d4 5060     		str	r0, [r2, #4]	@ float
+ 335:application/cmd/robot_cmd.c ****         add_pitch = pc_recv_data->vision_data.pitch;    
+ 679              		.loc 1 335 9 is_stmt 1 view .LVU234
+ 335:application/cmd/robot_cmd.c ****         add_pitch = pc_recv_data->vision_data.pitch;    
+ 680              		.loc 1 335 45 is_stmt 0 view .LVU235
+ 681 00d6 D3F80620 		ldr	r2, [r3, #6]	@ unaligned
+ 335:application/cmd/robot_cmd.c ****         add_pitch = pc_recv_data->vision_data.pitch;    
+ 682              		.loc 1 335 19 view .LVU236
+ 683 00da 07EE902A 		vmov	s15, r2
+ 684 00de F1EE677A 		vneg.f32	s15, s15
+ 335:application/cmd/robot_cmd.c ****         add_pitch = pc_recv_data->vision_data.pitch;    
+ 685              		.loc 1 335 17 view .LVU237
+ 686 00e2 224A     		ldr	r2, .L74+8
+ 687 00e4 C2ED007A 		vstr.32	s15, [r2]
+ 336:application/cmd/robot_cmd.c ****     } 
+ 688              		.loc 1 336 9 is_stmt 1 view .LVU238
+ 336:application/cmd/robot_cmd.c ****     } 
+ 689              		.loc 1 336 46 is_stmt 0 view .LVU239
+ 690 00e8 D3F80220 		ldr	r2, [r3, #2]	@ unaligned
+ 336:application/cmd/robot_cmd.c ****     } 
+ 691              		.loc 1 336 19 view .LVU240
+ 692 00ec 204B     		ldr	r3, .L74+12
+ 693 00ee 1A60     		str	r2, [r3]	@ float
+ 694 00f0 D8E7     		b	.L56
+ 695              	.L57:
+ 345:application/cmd/robot_cmd.c ****         gimbal_cmd_send.gimbal_mode = GIMBAL_GYRO_MODE;
+ 696              		.loc 1 345 9 is_stmt 1 view .LVU241
+ 345:application/cmd/robot_cmd.c ****         gimbal_cmd_send.gimbal_mode = GIMBAL_GYRO_MODE;
+ 697              		.loc 1 345 39 is_stmt 0 view .LVU242
+ 698 00f2 204B     		ldr	r3, .L74+16
+ 699 00f4 0322     		movs	r2, #3
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 21
+
+
+ 700 00f6 1A75     		strb	r2, [r3, #20]
+ 346:application/cmd/robot_cmd.c ****         break;
+ 701              		.loc 1 346 9 is_stmt 1 view .LVU243
+ 346:application/cmd/robot_cmd.c ****         break;
+ 702              		.loc 1 346 37 is_stmt 0 view .LVU244
+ 703 00f8 1F4B     		ldr	r3, .L74+20
+ 704 00fa 0122     		movs	r2, #1
+ 705 00fc 1A73     		strb	r2, [r3, #12]
+ 347:application/cmd/robot_cmd.c ****     case 1:
+ 706              		.loc 1 347 9 is_stmt 1 view .LVU245
+ 707              	.L60:
+ 356:application/cmd/robot_cmd.c ****     }
+ 357:application/cmd/robot_cmd.c ****     // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3) // Z键设置弹速
+ 358:application/cmd/robot_cmd.c ****     // {
+ 359:application/cmd/robot_cmd.c ****     // case 0:
+ 360:application/cmd/robot_cmd.c ****     //     shoot_cmd_send.bullet_speed = 15;
+ 361:application/cmd/robot_cmd.c ****     //     break;
+ 362:application/cmd/robot_cmd.c ****     // case 1:
+ 363:application/cmd/robot_cmd.c ****     //     shoot_cmd_send.bullet_speed = 18;
+ 364:application/cmd/robot_cmd.c ****     //     break;
+ 365:application/cmd/robot_cmd.c ****     // default:
+ 366:application/cmd/robot_cmd.c ****     //     shoot_cmd_send.bullet_speed = 30;
+ 367:application/cmd/robot_cmd.c ****     //     break;
+ 368:application/cmd/robot_cmd.c ****     // }
+ 369:application/cmd/robot_cmd.c ****     // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 4) // E键设置发射模式
+ 370:application/cmd/robot_cmd.c ****     // {
+ 371:application/cmd/robot_cmd.c ****     // case 0:
+ 372:application/cmd/robot_cmd.c ****     //     shoot_cmd_send.load_mode = LOAD_STOP;
+ 373:application/cmd/robot_cmd.c ****     //     break;
+ 374:application/cmd/robot_cmd.c ****     // case 1:
+ 375:application/cmd/robot_cmd.c ****     //     shoot_cmd_send.load_mode = LOAD_1_BULLET;
+ 376:application/cmd/robot_cmd.c ****     //     break;
+ 377:application/cmd/robot_cmd.c ****     // case 2:
+ 378:application/cmd/robot_cmd.c ****     //     shoot_cmd_send.load_mode = LOAD_3_BULLET;
+ 379:application/cmd/robot_cmd.c ****     //     break;
+ 380:application/cmd/robot_cmd.c ****     // default:
+ 381:application/cmd/robot_cmd.c ****     //     shoot_cmd_send.load_mode = LOAD_BURSTFIRE;
+ 382:application/cmd/robot_cmd.c ****     //     break;
+ 383:application/cmd/robot_cmd.c ****     // }
+ 384:application/cmd/robot_cmd.c **** 
+ 385:application/cmd/robot_cmd.c ****     // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_R] % 2) // R键开关弹舱
+ 386:application/cmd/robot_cmd.c ****     // {
+ 387:application/cmd/robot_cmd.c ****     // case 0:
+ 388:application/cmd/robot_cmd.c ****     //     shoot_cmd_send.lid_mode = LID_OPEN;
+ 389:application/cmd/robot_cmd.c ****     //     break;
+ 390:application/cmd/robot_cmd.c ****     // default:
+ 391:application/cmd/robot_cmd.c ****     //     shoot_cmd_send.lid_mode = LID_CLOSE;
+ 392:application/cmd/robot_cmd.c ****     //     break;
+ 393:application/cmd/robot_cmd.c ****     // }
+ 394:application/cmd/robot_cmd.c **** 
+ 395:application/cmd/robot_cmd.c ****     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_F] % 2) // F键开关摩擦轮
+ 708              		.loc 1 395 5 view .LVU246
+ 709              		.loc 1 395 47 is_stmt 0 view .LVU247
+ 710 00fe 91F82130 		ldrb	r3, [r1, #33]	@ zero_extendqisi2
+ 711              		.loc 1 395 5 view .LVU248
+ 712 0102 13F00103 		ands	r3, r3, #1
+ 713 0106 0CD0     		beq	.L61
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 22
+
+
+ 714 0108 ABB9     		cbnz	r3, .L62
+ 396:application/cmd/robot_cmd.c ****     {
+ 397:application/cmd/robot_cmd.c ****     case 0:
+ 398:application/cmd/robot_cmd.c ****         shoot_cmd_send.shoot_mode = SHOOT_ON;
+ 399:application/cmd/robot_cmd.c ****         shoot_cmd_send.friction_mode = FRICTION_OFF;
+ 400:application/cmd/robot_cmd.c ****         break;
+ 401:application/cmd/robot_cmd.c ****     case 1:
+ 402:application/cmd/robot_cmd.c ****         shoot_cmd_send.shoot_mode = SHOOT_ON;
+ 403:application/cmd/robot_cmd.c ****         shoot_cmd_send.friction_mode = FRICTION_ON;
+ 404:application/cmd/robot_cmd.c ****         break;    
+ 405:application/cmd/robot_cmd.c ****     default:
+ 406:application/cmd/robot_cmd.c ****         shoot_cmd_send.shoot_mode = SHOOT_ON;
+ 715              		.loc 1 406 9 is_stmt 1 view .LVU249
+ 716              		.loc 1 406 35 is_stmt 0 view .LVU250
+ 717 010a 1D4B     		ldr	r3, .L74+28
+ 718 010c 0222     		movs	r2, #2
+ 719 010e 1A70     		strb	r2, [r3]
+ 407:application/cmd/robot_cmd.c ****         shoot_cmd_send.friction_mode = FRICTION_OFF;
+ 720              		.loc 1 407 9 is_stmt 1 view .LVU251
+ 721              		.loc 1 407 38 is_stmt 0 view .LVU252
+ 722 0110 0022     		movs	r2, #0
+ 723 0112 DA70     		strb	r2, [r3, #3]
+ 408:application/cmd/robot_cmd.c ****         break;
+ 724              		.loc 1 408 9 is_stmt 1 view .LVU253
+ 725 0114 0AE0     		b	.L64
+ 726              	.L58:
+ 349:application/cmd/robot_cmd.c ****         gimbal_cmd_send.gimbal_mode = GIMBAL_GYRO_MODE;
+ 727              		.loc 1 349 9 view .LVU254
+ 349:application/cmd/robot_cmd.c ****         gimbal_cmd_send.gimbal_mode = GIMBAL_GYRO_MODE;
+ 728              		.loc 1 349 39 is_stmt 0 view .LVU255
+ 729 0116 0123     		movs	r3, #1
+ 730 0118 164A     		ldr	r2, .L74+16
+ 731 011a 1375     		strb	r3, [r2, #20]
+ 350:application/cmd/robot_cmd.c ****         break;
+ 732              		.loc 1 350 9 is_stmt 1 view .LVU256
+ 350:application/cmd/robot_cmd.c ****         break;
+ 733              		.loc 1 350 37 is_stmt 0 view .LVU257
+ 734 011c 164A     		ldr	r2, .L74+20
+ 735 011e 1373     		strb	r3, [r2, #12]
+ 351:application/cmd/robot_cmd.c ****     default:
+ 736              		.loc 1 351 9 is_stmt 1 view .LVU258
+ 737 0120 EDE7     		b	.L60
+ 738              	.L61:
+ 398:application/cmd/robot_cmd.c ****         shoot_cmd_send.friction_mode = FRICTION_OFF;
+ 739              		.loc 1 398 9 view .LVU259
+ 398:application/cmd/robot_cmd.c ****         shoot_cmd_send.friction_mode = FRICTION_OFF;
+ 740              		.loc 1 398 35 is_stmt 0 view .LVU260
+ 741 0122 174B     		ldr	r3, .L74+28
+ 742 0124 0222     		movs	r2, #2
+ 743 0126 1A70     		strb	r2, [r3]
+ 399:application/cmd/robot_cmd.c ****         break;
+ 744              		.loc 1 399 9 is_stmt 1 view .LVU261
+ 399:application/cmd/robot_cmd.c ****         break;
+ 745              		.loc 1 399 38 is_stmt 0 view .LVU262
+ 746 0128 0022     		movs	r2, #0
+ 747 012a DA70     		strb	r2, [r3, #3]
+ 400:application/cmd/robot_cmd.c ****     case 1:
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 23
+
+
+ 748              		.loc 1 400 9 is_stmt 1 view .LVU263
+ 749              	.L64:
+ 409:application/cmd/robot_cmd.c ****     }
+ 410:application/cmd/robot_cmd.c **** 
+ 411:application/cmd/robot_cmd.c ****     if (shoot_cmd_send.friction_mode == FRICTION_ON)    // 开启摩擦轮后左键发射
+ 750              		.loc 1 411 5 view .LVU264
+ 751              		.loc 1 411 23 is_stmt 0 view .LVU265
+ 752 012c 144B     		ldr	r3, .L74+28
+ 753 012e DB78     		ldrb	r3, [r3, #3]	@ zero_extendqisi2
+ 754              		.loc 1 411 8 view .LVU266
+ 755 0130 012B     		cmp	r3, #1
+ 756 0132 06D0     		beq	.L73
+ 757              	.L55:
+ 412:application/cmd/robot_cmd.c ****     {
+ 413:application/cmd/robot_cmd.c ****         switch (rc_data[TEMP].mouse.press_l) 
+ 414:application/cmd/robot_cmd.c ****         {
+ 415:application/cmd/robot_cmd.c ****         case 0:
+ 416:application/cmd/robot_cmd.c ****             shoot_cmd_send.load_mode = LOAD_STOP;
+ 417:application/cmd/robot_cmd.c ****             break;
+ 418:application/cmd/robot_cmd.c ****         case 1:
+ 419:application/cmd/robot_cmd.c ****             // if (referee_data->PowerHeatData.shooter_17mm_1_barrel_heat)
+ 420:application/cmd/robot_cmd.c ****             shoot_cmd_send.load_mode = LOAD_BURSTFIRE;
+ 421:application/cmd/robot_cmd.c ****             break;
+ 422:application/cmd/robot_cmd.c ****         default:
+ 423:application/cmd/robot_cmd.c ****             shoot_cmd_send.load_mode = LOAD_STOP;
+ 424:application/cmd/robot_cmd.c ****             break;
+ 425:application/cmd/robot_cmd.c ****         }
+ 426:application/cmd/robot_cmd.c ****     }
+ 427:application/cmd/robot_cmd.c **** 
+ 428:application/cmd/robot_cmd.c ****     // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4) // C键设置底盘速度
+ 429:application/cmd/robot_cmd.c ****     // {
+ 430:application/cmd/robot_cmd.c ****     // case 0:
+ 431:application/cmd/robot_cmd.c ****     //     chassis_cmd_send.chassis_speed_buff = 40;
+ 432:application/cmd/robot_cmd.c ****     //     break;
+ 433:application/cmd/robot_cmd.c ****     // case 1:
+ 434:application/cmd/robot_cmd.c ****     //     chassis_cmd_send.chassis_speed_buff = 60;
+ 435:application/cmd/robot_cmd.c ****     //     break;
+ 436:application/cmd/robot_cmd.c ****     // case 2:
+ 437:application/cmd/robot_cmd.c ****     //     chassis_cmd_send.chassis_speed_buff = 80;
+ 438:application/cmd/robot_cmd.c ****     //     break;
+ 439:application/cmd/robot_cmd.c ****     // default:
+ 440:application/cmd/robot_cmd.c ****     //     chassis_cmd_send.chassis_speed_buff = 100;
+ 441:application/cmd/robot_cmd.c ****     //     break;
+ 442:application/cmd/robot_cmd.c ****     // }
+ 443:application/cmd/robot_cmd.c ****     // switch (rc_data[TEMP].key[KEY_PRESS].shift) // 待添加 按shift允许超功率 消耗缓�
+ 444:application/cmd/robot_cmd.c ****     // {
+ 445:application/cmd/robot_cmd.c ****     // case 1:
+ 446:application/cmd/robot_cmd.c **** 
+ 447:application/cmd/robot_cmd.c ****     //     break;
+ 448:application/cmd/robot_cmd.c **** 
+ 449:application/cmd/robot_cmd.c ****     // default:
+ 450:application/cmd/robot_cmd.c **** 
+ 451:application/cmd/robot_cmd.c ****     //     break;
+ 452:application/cmd/robot_cmd.c ****     // }
+ 453:application/cmd/robot_cmd.c **** 
+ 454:application/cmd/robot_cmd.c **** }
+ 758              		.loc 1 454 1 view .LVU267
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 24
+
+
+ 759 0134 7047     		bx	lr
+ 760              	.L62:
+ 402:application/cmd/robot_cmd.c ****         shoot_cmd_send.friction_mode = FRICTION_ON;
+ 761              		.loc 1 402 9 is_stmt 1 view .LVU268
+ 402:application/cmd/robot_cmd.c ****         shoot_cmd_send.friction_mode = FRICTION_ON;
+ 762              		.loc 1 402 35 is_stmt 0 view .LVU269
+ 763 0136 124B     		ldr	r3, .L74+28
+ 764 0138 0222     		movs	r2, #2
+ 765 013a 1A70     		strb	r2, [r3]
+ 403:application/cmd/robot_cmd.c ****         break;    
+ 766              		.loc 1 403 9 is_stmt 1 view .LVU270
+ 403:application/cmd/robot_cmd.c ****         break;    
+ 767              		.loc 1 403 38 is_stmt 0 view .LVU271
+ 768 013c 0122     		movs	r2, #1
+ 769 013e DA70     		strb	r2, [r3, #3]
+ 404:application/cmd/robot_cmd.c ****     default:
+ 770              		.loc 1 404 9 is_stmt 1 view .LVU272
+ 771 0140 F4E7     		b	.L64
+ 772              	.L73:
+ 413:application/cmd/robot_cmd.c ****         {
+ 773              		.loc 1 413 9 view .LVU273
+ 413:application/cmd/robot_cmd.c ****         {
+ 774              		.loc 1 413 36 is_stmt 0 view .LVU274
+ 775 0142 0B7C     		ldrb	r3, [r1, #16]	@ zero_extendqisi2
+ 413:application/cmd/robot_cmd.c ****         {
+ 776              		.loc 1 413 9 view .LVU275
+ 777 0144 2BB1     		cbz	r3, .L66
+ 778 0146 012B     		cmp	r3, #1
+ 779 0148 07D0     		beq	.L67
+ 423:application/cmd/robot_cmd.c ****             break;
+ 780              		.loc 1 423 13 is_stmt 1 view .LVU276
+ 423:application/cmd/robot_cmd.c ****             break;
+ 781              		.loc 1 423 38 is_stmt 0 view .LVU277
+ 782 014a 0D4B     		ldr	r3, .L74+28
+ 783 014c 0022     		movs	r2, #0
+ 784 014e 5A70     		strb	r2, [r3, #1]
+ 424:application/cmd/robot_cmd.c ****         }
+ 785              		.loc 1 424 13 is_stmt 1 view .LVU278
+ 786              		.loc 1 454 1 is_stmt 0 view .LVU279
+ 787 0150 F0E7     		b	.L55
+ 788              	.L66:
+ 416:application/cmd/robot_cmd.c ****             break;
+ 789              		.loc 1 416 13 is_stmt 1 view .LVU280
+ 416:application/cmd/robot_cmd.c ****             break;
+ 790              		.loc 1 416 38 is_stmt 0 view .LVU281
+ 791 0152 0B4B     		ldr	r3, .L74+28
+ 792 0154 0022     		movs	r2, #0
+ 793 0156 5A70     		strb	r2, [r3, #1]
+ 417:application/cmd/robot_cmd.c ****         case 1:
+ 794              		.loc 1 417 13 is_stmt 1 view .LVU282
+ 795 0158 7047     		bx	lr
+ 796              	.L67:
+ 420:application/cmd/robot_cmd.c ****             break;
+ 797              		.loc 1 420 13 view .LVU283
+ 420:application/cmd/robot_cmd.c ****             break;
+ 798              		.loc 1 420 38 is_stmt 0 view .LVU284
+ 799 015a 094B     		ldr	r3, .L74+28
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 25
+
+
+ 800 015c 0422     		movs	r2, #4
+ 801 015e 5A70     		strb	r2, [r3, #1]
+ 421:application/cmd/robot_cmd.c ****         default:
+ 802              		.loc 1 421 13 is_stmt 1 view .LVU285
+ 803 0160 7047     		bx	lr
+ 804              	.L75:
+ 805 0162 00BF     		.align	2
+ 806              	.L74:
+ 807 0164 00000000 		.word	rc_data
+ 808 0168 00002544 		.word	1143275520
+ 809 016c 00000000 		.word	add_yaw.4
+ 810 0170 00000000 		.word	add_pitch.3
+ 811 0174 00000000 		.word	chassis_cmd_send
+ 812 0178 00000000 		.word	gimbal_cmd_send
+ 813 017c 00000000 		.word	pc_recv_data
+ 814 0180 00000000 		.word	shoot_cmd_send
+ 815              		.cfi_endproc
+ 816              	.LFE280:
+ 818              		.section	.rodata.RobotCMDInit.str1.4,"aMS",%progbits,1
+ 819              		.align	2
+ 820              	.LC1:
+ 821 0000 67696D62 		.ascii	"gimbal_cmd\000"
+ 821      616C5F63 
+ 821      6D6400
+ 822 000b 00       		.align	2
+ 823              	.LC2:
+ 824 000c 67696D62 		.ascii	"gimbal_feed\000"
+ 824      616C5F66 
+ 824      65656400 
+ 825              		.align	2
+ 826              	.LC3:
+ 827 0018 73686F6F 		.ascii	"shoot_cmd\000"
+ 827      745F636D 
+ 827      6400
+ 828 0022 0000     		.align	2
+ 829              	.LC4:
+ 830 0024 73686F6F 		.ascii	"shoot_feed\000"
+ 830      745F6665 
+ 830      656400
+ 831 002f 00       		.align	2
+ 832              	.LC5:
+ 833 0030 63686173 		.ascii	"chassis_cmd\000"
+ 833      7369735F 
+ 833      636D6400 
+ 834              		.align	2
+ 835              	.LC6:
+ 836 003c 63686173 		.ascii	"chassis_feed\000"
+ 836      7369735F 
+ 836      66656564 
+ 836      00
+ 837              		.section	.text.RobotCMDInit,"ax",%progbits
+ 838              		.align	1
+ 839              		.global	RobotCMDInit
+ 840              		.syntax unified
+ 841              		.thumb
+ 842              		.thumb_func
+ 844              	RobotCMDInit:
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 26
+
+
+ 845              	.LFB276:
+  61:application/cmd/robot_cmd.c ****     robot_config = RobotConfigInit(INFANTRY_ROBOT_4);
+ 846              		.loc 1 61 1 view -0
+ 847              		.cfi_startproc
+ 848              		@ args = 0, pretend = 0, frame = 16
+ 849              		@ frame_needed = 0, uses_anonymous_args = 0
+ 850 0000 10B5     		push	{r4, lr}
+ 851              	.LCFI0:
+ 852              		.cfi_def_cfa_offset 8
+ 853              		.cfi_offset 4, -8
+ 854              		.cfi_offset 14, -4
+ 855 0002 84B0     		sub	sp, sp, #16
+ 856              	.LCFI1:
+ 857              		.cfi_def_cfa_offset 24
+  62:application/cmd/robot_cmd.c **** 
+ 858              		.loc 1 62 5 view .LVU287
+  62:application/cmd/robot_cmd.c **** 
+ 859              		.loc 1 62 20 is_stmt 0 view .LVU288
+ 860 0004 0420     		movs	r0, #4
+ 861 0006 FFF7FEFF 		bl	RobotConfigInit
+ 862              	.LVL4:
+  62:application/cmd/robot_cmd.c **** 
+ 863              		.loc 1 62 18 discriminator 1 view .LVU289
+ 864 000a 2B4B     		ldr	r3, .L78
+ 865 000c 1860     		str	r0, [r3]
+  64:application/cmd/robot_cmd.c ****             .alarm_level = ALARM_LEVEL_HIGH, //设置警报等级 同一状态下 高等级的响�
+ 866              		.loc 1 64 5 is_stmt 1 view .LVU290
+  64:application/cmd/robot_cmd.c ****             .alarm_level = ALARM_LEVEL_HIGH, //设置警报等级 同一状态下 高等级的响�
+ 867              		.loc 1 64 21 is_stmt 0 view .LVU291
+ 868 000e 0024     		movs	r4, #0
+ 869 0010 8DF80840 		strb	r4, [sp, #8]
+ 870 0014 8DF80940 		strb	r4, [sp, #9]
+ 871 0018 284B     		ldr	r3, .L78+4
+ 872 001a 0393     		str	r3, [sp, #12]	@ float
+  69:application/cmd/robot_cmd.c **** 
+ 873              		.loc 1 69 5 is_stmt 1 view .LVU292
+  69:application/cmd/robot_cmd.c **** 
+ 874              		.loc 1 69 20 is_stmt 0 view .LVU293
+ 875 001c 02A8     		add	r0, sp, #8
+ 876 001e FFF7FEFF 		bl	BuzzerRegister
+ 877              	.LVL5:
+  69:application/cmd/robot_cmd.c **** 
+ 878              		.loc 1 69 18 discriminator 1 view .LVU294
+ 879 0022 274B     		ldr	r3, .L78+8
+ 880 0024 1860     		str	r0, [r3]
+  71:application/cmd/robot_cmd.c ****             .color = PINK,
+ 881              		.loc 1 71 5 is_stmt 1 view .LVU295
+  71:application/cmd/robot_cmd.c ****             .color = PINK,
+ 882              		.loc 1 71 18 is_stmt 0 view .LVU296
+ 883 0026 274B     		ldr	r3, .L78+12
+ 884 0028 1B68     		ldr	r3, [r3]
+ 885 002a ADF80430 		strh	r3, [sp, #4]	@ movhi
+ 886 002e 1B0C     		lsrs	r3, r3, #16
+ 887 0030 8DF80630 		strb	r3, [sp, #6]
+  76:application/cmd/robot_cmd.c **** 
+ 888              		.loc 1 76 5 is_stmt 1 view .LVU297
+  76:application/cmd/robot_cmd.c **** 
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 27
+
+
+ 889              		.loc 1 76 17 is_stmt 0 view .LVU298
+ 890 0034 01A8     		add	r0, sp, #4
+ 891 0036 FFF7FEFF 		bl	LEDRegister
+ 892              	.LVL6:
+  76:application/cmd/robot_cmd.c **** 
+ 893              		.loc 1 76 15 discriminator 1 view .LVU299
+ 894 003a 234B     		ldr	r3, .L78+16
+ 895 003c 1860     		str	r0, [r3]
+  78:application/cmd/robot_cmd.c ****     pc_recv_data = RobotPCInit(&huart1); // 视觉通信串口
+ 896              		.loc 1 78 5 is_stmt 1 view .LVU300
+  78:application/cmd/robot_cmd.c ****     pc_recv_data = RobotPCInit(&huart1); // 视觉通信串口
+ 897              		.loc 1 78 15 is_stmt 0 view .LVU301
+ 898 003e 2348     		ldr	r0, .L78+20
+ 899 0040 FFF7FEFF 		bl	RemoteControlInit
+ 900              	.LVL7:
+  78:application/cmd/robot_cmd.c ****     pc_recv_data = RobotPCInit(&huart1); // 视觉通信串口
+ 901              		.loc 1 78 13 discriminator 1 view .LVU302
+ 902 0044 224B     		ldr	r3, .L78+24
+ 903 0046 1860     		str	r0, [r3]
+  79:application/cmd/robot_cmd.c **** 
+ 904              		.loc 1 79 5 is_stmt 1 view .LVU303
+  79:application/cmd/robot_cmd.c **** 
+ 905              		.loc 1 79 20 is_stmt 0 view .LVU304
+ 906 0048 2248     		ldr	r0, .L78+28
+ 907 004a FFF7FEFF 		bl	RobotPCInit
+ 908              	.LVL8:
+  79:application/cmd/robot_cmd.c **** 
+ 909              		.loc 1 79 18 discriminator 1 view .LVU305
+ 910 004e 224B     		ldr	r3, .L78+32
+ 911 0050 1860     		str	r0, [r3]
+  81:application/cmd/robot_cmd.c **** 
+ 912              		.loc 1 81 5 is_stmt 1 view .LVU306
+  81:application/cmd/robot_cmd.c **** 
+ 913              		.loc 1 81 20 is_stmt 0 view .LVU307
+ 914 0052 2249     		ldr	r1, .L78+36
+ 915 0054 2248     		ldr	r0, .L78+40
+ 916 0056 FFF7FEFF 		bl	UITaskInit
+ 917              	.LVL9:
+  81:application/cmd/robot_cmd.c **** 
+ 918              		.loc 1 81 18 discriminator 1 view .LVU308
+ 919 005a 224B     		ldr	r3, .L78+44
+ 920 005c 1860     		str	r0, [r3]
+  83:application/cmd/robot_cmd.c ****     gimbal_feed_sub = SubRegister("gimbal_feed", sizeof(Gimbal_Upload_Data_s));
+ 921              		.loc 1 83 5 is_stmt 1 view .LVU309
+  83:application/cmd/robot_cmd.c ****     gimbal_feed_sub = SubRegister("gimbal_feed", sizeof(Gimbal_Upload_Data_s));
+ 922              		.loc 1 83 22 is_stmt 0 view .LVU310
+ 923 005e 0D21     		movs	r1, #13
+ 924 0060 2148     		ldr	r0, .L78+48
+ 925 0062 FFF7FEFF 		bl	PubRegister
+ 926              	.LVL10:
+  83:application/cmd/robot_cmd.c ****     gimbal_feed_sub = SubRegister("gimbal_feed", sizeof(Gimbal_Upload_Data_s));
+ 927              		.loc 1 83 20 discriminator 1 view .LVU311
+ 928 0066 214B     		ldr	r3, .L78+52
+ 929 0068 1860     		str	r0, [r3]
+  84:application/cmd/robot_cmd.c ****     shoot_cmd_pub = PubRegister("shoot_cmd", sizeof(Shoot_Ctrl_Cmd_s));
+ 930              		.loc 1 84 5 is_stmt 1 view .LVU312
+  84:application/cmd/robot_cmd.c ****     shoot_cmd_pub = PubRegister("shoot_cmd", sizeof(Shoot_Ctrl_Cmd_s));
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 28
+
+
+ 931              		.loc 1 84 23 is_stmt 0 view .LVU313
+ 932 006a 2C21     		movs	r1, #44
+ 933 006c 2048     		ldr	r0, .L78+56
+ 934 006e FFF7FEFF 		bl	SubRegister
+ 935              	.LVL11:
+  84:application/cmd/robot_cmd.c ****     shoot_cmd_pub = PubRegister("shoot_cmd", sizeof(Shoot_Ctrl_Cmd_s));
+ 936              		.loc 1 84 21 discriminator 1 view .LVU314
+ 937 0072 204B     		ldr	r3, .L78+60
+ 938 0074 1860     		str	r0, [r3]
+  85:application/cmd/robot_cmd.c ****     shoot_feed_sub = SubRegister("shoot_feed", sizeof(Shoot_Upload_Data_s));
+ 939              		.loc 1 85 5 is_stmt 1 view .LVU315
+  85:application/cmd/robot_cmd.c ****     shoot_feed_sub = SubRegister("shoot_feed", sizeof(Shoot_Upload_Data_s));
+ 940              		.loc 1 85 21 is_stmt 0 view .LVU316
+ 941 0076 0A21     		movs	r1, #10
+ 942 0078 1F48     		ldr	r0, .L78+64
+ 943 007a FFF7FEFF 		bl	PubRegister
+ 944              	.LVL12:
+  85:application/cmd/robot_cmd.c ****     shoot_feed_sub = SubRegister("shoot_feed", sizeof(Shoot_Upload_Data_s));
+ 945              		.loc 1 85 19 discriminator 1 view .LVU317
+ 946 007e 1F4B     		ldr	r3, .L78+68
+ 947 0080 1860     		str	r0, [r3]
+  86:application/cmd/robot_cmd.c **** 
+ 948              		.loc 1 86 5 is_stmt 1 view .LVU318
+  86:application/cmd/robot_cmd.c **** 
+ 949              		.loc 1 86 22 is_stmt 0 view .LVU319
+ 950 0082 2146     		mov	r1, r4
+ 951 0084 1E48     		ldr	r0, .L78+72
+ 952 0086 FFF7FEFF 		bl	SubRegister
+ 953              	.LVL13:
+  86:application/cmd/robot_cmd.c **** 
+ 954              		.loc 1 86 20 discriminator 1 view .LVU320
+ 955 008a 1E4B     		ldr	r3, .L78+76
+ 956 008c 1860     		str	r0, [r3]
+  89:application/cmd/robot_cmd.c ****     chassis_feed_sub = SubRegister("chassis_feed", sizeof(Chassis_Upload_Data_s));
+ 957              		.loc 1 89 5 is_stmt 1 view .LVU321
+  89:application/cmd/robot_cmd.c ****     chassis_feed_sub = SubRegister("chassis_feed", sizeof(Chassis_Upload_Data_s));
+ 958              		.loc 1 89 23 is_stmt 0 view .LVU322
+ 959 008e 3521     		movs	r1, #53
+ 960 0090 1D48     		ldr	r0, .L78+80
+ 961 0092 FFF7FEFF 		bl	PubRegister
+ 962              	.LVL14:
+  89:application/cmd/robot_cmd.c ****     chassis_feed_sub = SubRegister("chassis_feed", sizeof(Chassis_Upload_Data_s));
+ 963              		.loc 1 89 21 discriminator 1 view .LVU323
+ 964 0096 1D4B     		ldr	r3, .L78+84
+ 965 0098 1860     		str	r0, [r3]
+  90:application/cmd/robot_cmd.c **** #endif // ONE_BOARD
+ 966              		.loc 1 90 5 is_stmt 1 view .LVU324
+  90:application/cmd/robot_cmd.c **** #endif // ONE_BOARD
+ 967              		.loc 1 90 24 is_stmt 0 view .LVU325
+ 968 009a 0E21     		movs	r1, #14
+ 969 009c 1C48     		ldr	r0, .L78+88
+ 970 009e FFF7FEFF 		bl	SubRegister
+ 971              	.LVL15:
+  90:application/cmd/robot_cmd.c **** #endif // ONE_BOARD
+ 972              		.loc 1 90 22 discriminator 1 view .LVU326
+ 973 00a2 1C4B     		ldr	r3, .L78+92
+ 974 00a4 1860     		str	r0, [r3]
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 29
+
+
+ 104:application/cmd/robot_cmd.c **** 
+ 975              		.loc 1 104 5 is_stmt 1 view .LVU327
+ 104:application/cmd/robot_cmd.c **** 
+ 976              		.loc 1 104 27 is_stmt 0 view .LVU328
+ 977 00a6 1C4B     		ldr	r3, .L78+96
+ 978 00a8 0022     		movs	r2, #0
+ 979 00aa 5A60     		str	r2, [r3, #4]	@ float
+ 106:application/cmd/robot_cmd.c **** }
+ 980              		.loc 1 106 5 is_stmt 1 view .LVU329
+ 106:application/cmd/robot_cmd.c **** }
+ 981              		.loc 1 106 17 is_stmt 0 view .LVU330
+ 982 00ac 1B4B     		ldr	r3, .L78+100
+ 983 00ae 0122     		movs	r2, #1
+ 984 00b0 1A70     		strb	r2, [r3]
+ 107:application/cmd/robot_cmd.c **** 
+ 985              		.loc 1 107 1 view .LVU331
+ 986 00b2 04B0     		add	sp, sp, #16
+ 987              	.LCFI2:
+ 988              		.cfi_def_cfa_offset 8
+ 989              		@ sp needed
+ 990 00b4 10BD     		pop	{r4, pc}
+ 991              	.L79:
+ 992 00b6 00BF     		.align	2
+ 993              	.L78:
+ 994 00b8 00000000 		.word	robot_config
+ 995 00bc CDCCCC3E 		.word	1053609165
+ 996 00c0 00000000 		.word	buzzer_alarm
+ 997 00c4 00000000 		.word	.LANCHOR0
+ 998 00c8 00000000 		.word	led_alarm
+ 999 00cc 00000000 		.word	huart3
+ 1000 00d0 00000000 		.word	rc_data
+ 1001 00d4 00000000 		.word	huart1
+ 1002 00d8 00000000 		.word	pc_recv_data
+ 1003 00dc 00000000 		.word	ui_data
+ 1004 00e0 00000000 		.word	huart6
+ 1005 00e4 00000000 		.word	referee_data
+ 1006 00e8 00000000 		.word	.LC1
+ 1007 00ec 00000000 		.word	gimbal_cmd_pub
+ 1008 00f0 0C000000 		.word	.LC2
+ 1009 00f4 00000000 		.word	gimbal_feed_sub
+ 1010 00f8 18000000 		.word	.LC3
+ 1011 00fc 00000000 		.word	shoot_cmd_pub
+ 1012 0100 24000000 		.word	.LC4
+ 1013 0104 00000000 		.word	shoot_feed_sub
+ 1014 0108 30000000 		.word	.LC5
+ 1015 010c 00000000 		.word	chassis_cmd_pub
+ 1016 0110 3C000000 		.word	.LC6
+ 1017 0114 00000000 		.word	chassis_feed_sub
+ 1018 0118 00000000 		.word	gimbal_cmd_send
+ 1019 011c 00000000 		.word	robot_state
+ 1020              		.cfi_endproc
+ 1021              	.LFE276:
+ 1023              		.section	.text.RobotCMDTask,"ax",%progbits
+ 1024              		.align	1
+ 1025              		.global	RobotCMDTask
+ 1026              		.syntax unified
+ 1027              		.thumb
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 30
+
+
+ 1028              		.thumb_func
+ 1030              	RobotCMDTask:
+ 1031              	.LFB283:
+ 455:application/cmd/robot_cmd.c **** 
+ 456:application/cmd/robot_cmd.c **** /**
+ 457:application/cmd/robot_cmd.c ****  * @brief  报警处理，对于不同重要模块离线或者遥控器离线，进行不同类型�
+ 458:application/cmd/robot_cmd.c ****  *
+ 459:application/cmd/robot_cmd.c ****  */
+ 460:application/cmd/robot_cmd.c **** static void AlarmHandler()
+ 461:application/cmd/robot_cmd.c **** {
+ 462:application/cmd/robot_cmd.c ****     uint8_t temp = 0;
+ 463:application/cmd/robot_cmd.c **** 
+ 464:application/cmd/robot_cmd.c ****     if (robot_state == ROBOT_READY)
+ 465:application/cmd/robot_cmd.c ****     {
+ 466:application/cmd/robot_cmd.c ****         // 无力模式下，绿灯慢闪并且不报警
+ 467:application/cmd/robot_cmd.c ****         if (chassis_cmd_send.chassis_mode == CHASSIS_ZERO_FORCE && gimbal_cmd_send.gimbal_mode == G
+ 468:application/cmd/robot_cmd.c ****         {
+ 469:application/cmd/robot_cmd.c ****             LEDSetStatus(led_alarm, ALARM_ON); 
+ 470:application/cmd/robot_cmd.c ****             LEDSetFlash(led_alarm, GREEN, FLASH_LOW); 
+ 471:application/cmd/robot_cmd.c ****             BuzzerSetStatus(buzzer_alarm, ALARM_OFF);
+ 472:application/cmd/robot_cmd.c ****         }
+ 473:application/cmd/robot_cmd.c ****         else
+ 474:application/cmd/robot_cmd.c ****         { // 有力模式下，粉灯呼吸变化并且不报警
+ 475:application/cmd/robot_cmd.c ****             LEDSetStatus(led_alarm, ALARM_OFF); 
+ 476:application/cmd/robot_cmd.c ****             BuzzerSetStatus(buzzer_alarm, ALARM_OFF);
+ 477:application/cmd/robot_cmd.c ****         }
+ 478:application/cmd/robot_cmd.c ****     }
+ 479:application/cmd/robot_cmd.c ****     if (robot_state == ROBOT_STOP) 
+ 480:application/cmd/robot_cmd.c ****     {
+ 481:application/cmd/robot_cmd.c ****         // 底盘模块离线
+ 482:application/cmd/robot_cmd.c ****         if (chassis_fetch_data.motor_state == GIMBAL_MOTOR_OFFLINE)
+ 483:application/cmd/robot_cmd.c ****         { // 黄灯快闪，闪烁次数对应不同电机，蜂鸣器报警声为Do
+ 484:application/cmd/robot_cmd.c ****             temp++;
+ 485:application/cmd/robot_cmd.c ****             LEDSetStatus(led_alarm, ALARM_ON); 
+ 486:application/cmd/robot_cmd.c ****             LEDSetFlashTime(led_alarm, chassis_fetch_data.motor_offline_count);
+ 487:application/cmd/robot_cmd.c ****             LEDSetFlash(led_alarm, YELLOW, FLASH_HIGH);
+ 488:application/cmd/robot_cmd.c ****             BuzzerSetStatus(buzzer_alarm, ALARM_ON);
+ 489:application/cmd/robot_cmd.c ****             BuzzerSetOctave(buzzer_alarm, OCTAVE_1);
+ 490:application/cmd/robot_cmd.c ****         }
+ 491:application/cmd/robot_cmd.c **** 
+ 492:application/cmd/robot_cmd.c ****         // 云台模块离线
+ 493:application/cmd/robot_cmd.c ****         if (gimbal_fetch_data.motor_state == CHASSIS_MOTOR_OFFLINE)
+ 494:application/cmd/robot_cmd.c ****         { // 红灯快闪，闪烁次数对应不同电机，蜂鸣器报警声为Re
+ 495:application/cmd/robot_cmd.c ****             temp++;
+ 496:application/cmd/robot_cmd.c ****             LEDSetStatus(led_alarm, ALARM_ON); 
+ 497:application/cmd/robot_cmd.c ****             LEDSetFlashTime(led_alarm, gimbal_fetch_data.motor_offline_count);
+ 498:application/cmd/robot_cmd.c ****             LEDSetFlash(led_alarm, RED, FLASH_HIGH);
+ 499:application/cmd/robot_cmd.c ****             BuzzerSetStatus(buzzer_alarm, ALARM_ON);
+ 500:application/cmd/robot_cmd.c ****             BuzzerSetOctave(buzzer_alarm, OCTAVE_2);
+ 501:application/cmd/robot_cmd.c ****         }
+ 502:application/cmd/robot_cmd.c **** 
+ 503:application/cmd/robot_cmd.c ****         // 发射模块离线
+ 504:application/cmd/robot_cmd.c **** 
+ 505:application/cmd/robot_cmd.c ****         // 遥控器离线或者急停模式
+ 506:application/cmd/robot_cmd.c ****         if (temp == 0)
+ 507:application/cmd/robot_cmd.c ****         { // 黄灯常亮并且不报警
+ 508:application/cmd/robot_cmd.c ****             LEDSetStatus(led_alarm, ALARM_ON); 
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 31
+
+
+ 509:application/cmd/robot_cmd.c ****             LEDSetFlash(led_alarm, YELLOW, ALWAYS_ON);
+ 510:application/cmd/robot_cmd.c ****             BuzzerSetStatus(buzzer_alarm, ALARM_OFF);
+ 511:application/cmd/robot_cmd.c ****         }
+ 512:application/cmd/robot_cmd.c **** 
+ 513:application/cmd/robot_cmd.c ****         if (temp > 1 || chassis_fetch_data.motor_offline_count > 1 || gimbal_fetch_data.motor_offli
+ 514:application/cmd/robot_cmd.c ****         { // 超过一个模块或多个电机离线，红灯常量并且不报警
+ 515:application/cmd/robot_cmd.c ****             LEDSetStatus(led_alarm, ALARM_ON); 
+ 516:application/cmd/robot_cmd.c ****             LEDSetFlash(led_alarm, RED, ALWAYS_ON);
+ 517:application/cmd/robot_cmd.c ****             BuzzerSetStatus(buzzer_alarm, ALARM_OFF);      
+ 518:application/cmd/robot_cmd.c ****         }
+ 519:application/cmd/robot_cmd.c ****     }
+ 520:application/cmd/robot_cmd.c **** }
+ 521:application/cmd/robot_cmd.c **** 
+ 522:application/cmd/robot_cmd.c **** /**
+ 523:application/cmd/robot_cmd.c ****  * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效�
+ 524:application/cmd/robot_cmd.c ****  *
+ 525:application/cmd/robot_cmd.c ****  */
+ 526:application/cmd/robot_cmd.c **** static void EmergencyHandler()
+ 527:application/cmd/robot_cmd.c **** {
+ 528:application/cmd/robot_cmd.c ****     // 拨轮的向上拨超过一半或者遥控器离线进入急停模式.注意向打时下拨�
+ 529:application/cmd/robot_cmd.c ****     if (rc_data[TEMP].rc.dial < -400 || robot_state == ROBOT_STOP || !RemoteControlIsOnline())
+ 530:application/cmd/robot_cmd.c ****     {
+ 531:application/cmd/robot_cmd.c ****         robot_state = ROBOT_STOP;
+ 532:application/cmd/robot_cmd.c ****         gimbal_cmd_send.gimbal_mode = GIMBAL_ZERO_FORCE;
+ 533:application/cmd/robot_cmd.c ****         chassis_cmd_send.chassis_mode = CHASSIS_ZERO_FORCE;
+ 534:application/cmd/robot_cmd.c ****         shoot_cmd_send.shoot_mode = SHOOT_OFF;
+ 535:application/cmd/robot_cmd.c ****         shoot_cmd_send.friction_mode = FRICTION_OFF;
+ 536:application/cmd/robot_cmd.c ****         shoot_cmd_send.load_mode = LOAD_STOP;
+ 537:application/cmd/robot_cmd.c ****         LOGERROR("[CMD] emergency stop!");
+ 538:application/cmd/robot_cmd.c ****     }
+ 539:application/cmd/robot_cmd.c ****     if (gimbal_fetch_data.motor_state == GIMBAL_MOTOR_OFFLINE || chassis_fetch_data.motor_state == 
+ 540:application/cmd/robot_cmd.c ****     {
+ 541:application/cmd/robot_cmd.c ****         robot_state = ROBOT_STOP;
+ 542:application/cmd/robot_cmd.c ****         gimbal_cmd_send.gimbal_mode = GIMBAL_ZERO_FORCE;
+ 543:application/cmd/robot_cmd.c ****         chassis_cmd_send.chassis_mode = CHASSIS_ZERO_FORCE;
+ 544:application/cmd/robot_cmd.c ****         shoot_cmd_send.shoot_mode = SHOOT_OFF;
+ 545:application/cmd/robot_cmd.c ****         shoot_cmd_send.friction_mode = FRICTION_OFF;
+ 546:application/cmd/robot_cmd.c ****         shoot_cmd_send.load_mode = LOAD_STOP;
+ 547:application/cmd/robot_cmd.c ****         LOGERROR("[CMD] motor offline!");         
+ 548:application/cmd/robot_cmd.c ****     }
+ 549:application/cmd/robot_cmd.c ****     // 遥控器左侧和右侧开关均为[下]，遥控器和模块均在线,恢复正常运行
+ 550:application/cmd/robot_cmd.c ****     if (switch_is_down(rc_data[TEMP].rc.switch_left) && switch_is_down(rc_data[TEMP].rc.switch_righ
+ 551:application/cmd/robot_cmd.c ****     {
+ 552:application/cmd/robot_cmd.c ****         if (gimbal_fetch_data.motor_state == GIMBAL_MOTOR_ONLINE && chassis_fetch_data.motor_state 
+ 553:application/cmd/robot_cmd.c ****         {
+ 554:application/cmd/robot_cmd.c ****             robot_state = ROBOT_READY;       
+ 555:application/cmd/robot_cmd.c ****             LOGINFO("[CMD] reinstate, robot ready");            
+ 556:application/cmd/robot_cmd.c ****         }
+ 557:application/cmd/robot_cmd.c ****     }
+ 558:application/cmd/robot_cmd.c **** 
+ 559:application/cmd/robot_cmd.c ****     AlarmHandler(); // 报警处理
+ 560:application/cmd/robot_cmd.c **** }
+ 561:application/cmd/robot_cmd.c **** 
+ 562:application/cmd/robot_cmd.c **** /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
+ 563:application/cmd/robot_cmd.c **** void RobotCMDTask()
+ 564:application/cmd/robot_cmd.c **** {
+ 1032              		.loc 1 564 1 is_stmt 1 view -0
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 32
+
+
+ 1033              		.cfi_startproc
+ 1034              		@ args = 0, pretend = 0, frame = 0
+ 1035              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1036 0000 08B5     		push	{r3, lr}
+ 1037              	.LCFI3:
+ 1038              		.cfi_def_cfa_offset 8
+ 1039              		.cfi_offset 3, -8
+ 1040              		.cfi_offset 14, -4
+ 565:application/cmd/robot_cmd.c ****     // 从其他应用获取回传数据
+ 566:application/cmd/robot_cmd.c **** #ifdef ONE_BOARD
+ 567:application/cmd/robot_cmd.c ****     SubGetMessage(chassis_feed_sub, (void *)&chassis_fetch_data);
+ 1041              		.loc 1 567 5 view .LVU333
+ 1042 0002 3549     		ldr	r1, .L90
+ 1043 0004 354B     		ldr	r3, .L90+4
+ 1044 0006 1868     		ldr	r0, [r3]
+ 1045 0008 FFF7FEFF 		bl	SubGetMessage
+ 1046              	.LVL16:
+ 568:application/cmd/robot_cmd.c **** #endif // ONE_BOARD
+ 569:application/cmd/robot_cmd.c **** #ifdef GIMBAL_BOARD
+ 570:application/cmd/robot_cmd.c ****     chassis_fetch_data = *(Chassis_Upload_Data_s *)CANCommGet(cmd_can_comm);
+ 571:application/cmd/robot_cmd.c **** #endif // GIMBAL_BOARD
+ 572:application/cmd/robot_cmd.c ****     SubGetMessage(shoot_feed_sub, &shoot_fetch_data);
+ 1047              		.loc 1 572 5 view .LVU334
+ 1048 000c 3449     		ldr	r1, .L90+8
+ 1049 000e 354B     		ldr	r3, .L90+12
+ 1050 0010 1868     		ldr	r0, [r3]
+ 1051 0012 FFF7FEFF 		bl	SubGetMessage
+ 1052              	.LVL17:
+ 573:application/cmd/robot_cmd.c ****     SubGetMessage(gimbal_feed_sub, &gimbal_fetch_data);
+ 1053              		.loc 1 573 5 view .LVU335
+ 1054 0016 3449     		ldr	r1, .L90+16
+ 1055 0018 344B     		ldr	r3, .L90+20
+ 1056 001a 1868     		ldr	r0, [r3]
+ 1057 001c FFF7FEFF 		bl	SubGetMessage
+ 1058              	.LVL18:
+ 574:application/cmd/robot_cmd.c **** 
+ 575:application/cmd/robot_cmd.c ****     // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static
+ 576:application/cmd/robot_cmd.c ****     CalcOffsetAngle();
+ 1059              		.loc 1 576 5 view .LVU336
+ 1060 0020 FFF7FEFF 		bl	CalcOffsetAngle
+ 1061              	.LVL19:
+ 577:application/cmd/robot_cmd.c **** 
+ 578:application/cmd/robot_cmd.c ****     // B键开关遥控器
+ 579:application/cmd/robot_cmd.c ****     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_B] % 2) 
+ 1062              		.loc 1 579 5 view .LVU337
+ 1063              		.loc 1 579 20 is_stmt 0 view .LVU338
+ 1064 0024 324B     		ldr	r3, .L90+24
+ 1065 0026 1B68     		ldr	r3, [r3]
+ 1066              		.loc 1 579 47 view .LVU339
+ 1067 0028 93F82730 		ldrb	r3, [r3, #39]	@ zero_extendqisi2
+ 1068              		.loc 1 579 5 view .LVU340
+ 1069 002c 13F00103 		ands	r3, r3, #1
+ 1070 0030 04D0     		beq	.L81
+ 1071 0032 002B     		cmp	r3, #0
+ 1072 0034 31D1     		bne	.L82
+ 580:application/cmd/robot_cmd.c ****     {
+ 581:application/cmd/robot_cmd.c ****     case 0:
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 33
+
+
+ 582:application/cmd/robot_cmd.c ****         RemoteControlSet();
+ 583:application/cmd/robot_cmd.c ****         rc_data[TEMP].key_count[KEY_PRESS][Key_G] = 0;  // 初始化键盘控制
+ 584:application/cmd/robot_cmd.c ****         rc_data[TEMP].key_count[KEY_PRESS][Key_F] = 0;  
+ 585:application/cmd/robot_cmd.c ****         ui_data.Referee_Interactive_Flag.refresh_flag = 0;
+ 586:application/cmd/robot_cmd.c ****         break;    
+ 587:application/cmd/robot_cmd.c ****     case 1:
+ 588:application/cmd/robot_cmd.c ****         MouseKeySet();
+ 589:application/cmd/robot_cmd.c ****         if (!ui_data.Referee_Interactive_Flag.refresh_flag)
+ 590:application/cmd/robot_cmd.c ****             ui_data.Referee_Interactive_Flag.refresh_flag = 1; // UI界面刷新
+ 591:application/cmd/robot_cmd.c **** 
+ 592:application/cmd/robot_cmd.c ****         if (rc_data[TEMP].rc.dial < -400)
+ 593:application/cmd/robot_cmd.c ****             rc_data[TEMP].key_count[KEY_PRESS][Key_B] = 0; 
+ 594:application/cmd/robot_cmd.c ****         break;            
+ 595:application/cmd/robot_cmd.c ****     default:
+ 596:application/cmd/robot_cmd.c ****         RemoteControlSet();
+ 1073              		.loc 1 596 9 is_stmt 1 view .LVU341
+ 1074 0036 FFF7FEFF 		bl	RemoteControlSet
+ 1075              	.LVL20:
+ 597:application/cmd/robot_cmd.c ****         break;
+ 1076              		.loc 1 597 9 view .LVU342
+ 1077 003a 0DE0     		b	.L84
+ 1078              	.L81:
+ 582:application/cmd/robot_cmd.c ****         rc_data[TEMP].key_count[KEY_PRESS][Key_G] = 0;  // 初始化键盘控制
+ 1079              		.loc 1 582 9 view .LVU343
+ 1080 003c FFF7FEFF 		bl	RemoteControlSet
+ 1081              	.LVL21:
+ 583:application/cmd/robot_cmd.c ****         rc_data[TEMP].key_count[KEY_PRESS][Key_F] = 0;  
+ 1082              		.loc 1 583 9 view .LVU344
+ 583:application/cmd/robot_cmd.c ****         rc_data[TEMP].key_count[KEY_PRESS][Key_F] = 0;  
+ 1083              		.loc 1 583 16 is_stmt 0 view .LVU345
+ 1084 0040 2B4B     		ldr	r3, .L90+24
+ 1085 0042 1A68     		ldr	r2, [r3]
+ 583:application/cmd/robot_cmd.c ****         rc_data[TEMP].key_count[KEY_PRESS][Key_F] = 0;  
+ 1086              		.loc 1 583 51 view .LVU346
+ 1087 0044 0023     		movs	r3, #0
+ 1088 0046 82F82230 		strb	r3, [r2, #34]
+ 584:application/cmd/robot_cmd.c ****         ui_data.Referee_Interactive_Flag.refresh_flag = 0;
+ 1089              		.loc 1 584 9 is_stmt 1 view .LVU347
+ 584:application/cmd/robot_cmd.c ****         ui_data.Referee_Interactive_Flag.refresh_flag = 0;
+ 1090              		.loc 1 584 51 is_stmt 0 view .LVU348
+ 1091 004a 82F82130 		strb	r3, [r2, #33]
+ 585:application/cmd/robot_cmd.c ****         break;    
+ 1092              		.loc 1 585 9 is_stmt 1 view .LVU349
+ 585:application/cmd/robot_cmd.c ****         break;    
+ 1093              		.loc 1 585 55 is_stmt 0 view .LVU350
+ 1094 004e 294A     		ldr	r2, .L90+28
+ 1095 0050 1178     		ldrb	r1, [r2]	@ zero_extendqisi2
+ 1096 0052 63F38711 		bfi	r1, r3, #6, #2
+ 1097 0056 1170     		strb	r1, [r2]
+ 586:application/cmd/robot_cmd.c ****     case 1:
+ 1098              		.loc 1 586 9 is_stmt 1 view .LVU351
+ 1099              	.L84:
+ 598:application/cmd/robot_cmd.c ****     }
+ 599:application/cmd/robot_cmd.c **** 
+ 600:application/cmd/robot_cmd.c ****     // EmergencyHandler(); // 处理模块离线和遥控器急停等紧急情况
+ 601:application/cmd/robot_cmd.c **** 
+ 602:application/cmd/robot_cmd.c ****     // 获取裁判系统功率控制
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 34
+
+
+ 603:application/cmd/robot_cmd.c ****     if (!referee_data->GameRobotState.chassis_power_limit)
+ 1100              		.loc 1 603 5 view .LVU352
+ 1101              		.loc 1 603 22 is_stmt 0 view .LVU353
+ 1102 0058 274B     		ldr	r3, .L90+32
+ 1103 005a 1A68     		ldr	r2, [r3]
+ 1104              		.loc 1 603 38 view .LVU354
+ 1105 005c B2F84C30 		ldrh	r3, [r2, #76]	@ unaligned
+ 1106              		.loc 1 603 8 view .LVU355
+ 1107 0060 002B     		cmp	r3, #0
+ 1108 0062 31D1     		bne	.L86
+ 604:application/cmd/robot_cmd.c ****         chassis_cmd_send.power_limit = 100;
+ 1109              		.loc 1 604 9 is_stmt 1 view .LVU356
+ 1110              		.loc 1 604 38 is_stmt 0 view .LVU357
+ 1111 0064 254B     		ldr	r3, .L90+36
+ 1112 0066 2649     		ldr	r1, .L90+40
+ 1113 0068 1961     		str	r1, [r3, #16]	@ float
+ 1114              	.L87:
+ 605:application/cmd/robot_cmd.c ****     else
+ 606:application/cmd/robot_cmd.c ****         chassis_cmd_send.power_limit = referee_data->GameRobotState.chassis_power_limit;
+ 607:application/cmd/robot_cmd.c **** 
+ 608:application/cmd/robot_cmd.c ****     // 获取裁判系统数据
+ 609:application/cmd/robot_cmd.c ****     // 我方颜色id小于7是红色,大于7是蓝色,注意这里发送的是对方的颜色, 0:r
+ 610:application/cmd/robot_cmd.c ****     pc_send_data.enemy_color = referee_data->GameRobotState.robot_id > 7 ? 0 : 1;
+ 1115              		.loc 1 610 5 is_stmt 1 view .LVU358
+ 1116              		.loc 1 610 60 is_stmt 0 view .LVU359
+ 1117 006a 92F84230 		ldrb	r3, [r2, #66]	@ zero_extendqisi2
+ 1118              		.loc 1 610 78 view .LVU360
+ 1119 006e 072B     		cmp	r3, #7
+ 1120 0070 8CBF     		ite	hi
+ 1121 0072 0023     		movhi	r3, #0
+ 1122 0074 0123     		movls	r3, #1
+ 1123              		.loc 1 610 30 view .LVU361
+ 1124 0076 234A     		ldr	r2, .L90+44
+ 1125 0078 1370     		strb	r3, [r2]
+ 611:application/cmd/robot_cmd.c ****     // 当前只做了17mm热量的数据获取,后续根据robot_def中的宏切换双枪管和英
+ 612:application/cmd/robot_cmd.c ****     // vision_send_data.bullet_speed = referee_data->GameRobotState.shooter_barrel_cooling_value;
+ 613:application/cmd/robot_cmd.c ****     // vision_send_data.rest_heat = referee_data->PowerHeatData.shooter_heat0;
+ 614:application/cmd/robot_cmd.c **** 
+ 615:application/cmd/robot_cmd.c ****     // 推送消息,双板通信,视觉通信等
+ 616:application/cmd/robot_cmd.c ****     // 其他应用所需的控制数据在remotecontrolsetmode和mousekeysetmode中完成设置
+ 617:application/cmd/robot_cmd.c **** #ifdef ONE_BOARD
+ 618:application/cmd/robot_cmd.c ****     PubPushMessage(chassis_cmd_pub, (void *)&chassis_cmd_send);
+ 1126              		.loc 1 618 5 is_stmt 1 view .LVU362
+ 1127 007a 2049     		ldr	r1, .L90+36
+ 1128 007c 224B     		ldr	r3, .L90+48
+ 1129 007e 1868     		ldr	r0, [r3]
+ 1130 0080 FFF7FEFF 		bl	PubPushMessage
+ 1131              	.LVL22:
+ 619:application/cmd/robot_cmd.c **** #endif // ONE_BOARD
+ 620:application/cmd/robot_cmd.c **** #ifdef GIMBAL_BOARD
+ 621:application/cmd/robot_cmd.c ****     CANCommSend(cmd_can_comm, (void *)&chassis_cmd_send);
+ 622:application/cmd/robot_cmd.c **** #endif // GIMBAL_BOARD
+ 623:application/cmd/robot_cmd.c ****     PubPushMessage(shoot_cmd_pub, (void *)&shoot_cmd_send);
+ 1132              		.loc 1 623 5 view .LVU363
+ 1133 0084 2149     		ldr	r1, .L90+52
+ 1134 0086 224B     		ldr	r3, .L90+56
+ 1135 0088 1868     		ldr	r0, [r3]
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 35
+
+
+ 1136 008a FFF7FEFF 		bl	PubPushMessage
+ 1137              	.LVL23:
+ 624:application/cmd/robot_cmd.c ****     PubPushMessage(gimbal_cmd_pub, (void *)&gimbal_cmd_send);
+ 1138              		.loc 1 624 5 view .LVU364
+ 1139 008e 2149     		ldr	r1, .L90+60
+ 1140 0090 214B     		ldr	r3, .L90+64
+ 1141 0092 1868     		ldr	r0, [r3]
+ 1142 0094 FFF7FEFF 		bl	PubPushMessage
+ 1143              	.LVL24:
+ 625:application/cmd/robot_cmd.c **** }
+ 1144              		.loc 1 625 1 is_stmt 0 view .LVU365
+ 1145 0098 08BD     		pop	{r3, pc}
+ 1146              	.L82:
+ 588:application/cmd/robot_cmd.c ****         if (!ui_data.Referee_Interactive_Flag.refresh_flag)
+ 1147              		.loc 1 588 9 is_stmt 1 view .LVU366
+ 1148 009a FFF7FEFF 		bl	MouseKeySet
+ 1149              	.LVL25:
+ 589:application/cmd/robot_cmd.c ****             ui_data.Referee_Interactive_Flag.refresh_flag = 1; // UI界面刷新
+ 1150              		.loc 1 589 9 view .LVU367
+ 589:application/cmd/robot_cmd.c ****             ui_data.Referee_Interactive_Flag.refresh_flag = 1; // UI界面刷新
+ 1151              		.loc 1 589 13 is_stmt 0 view .LVU368
+ 1152 009e 154B     		ldr	r3, .L90+28
+ 1153 00a0 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 589:application/cmd/robot_cmd.c ****             ui_data.Referee_Interactive_Flag.refresh_flag = 1; // UI界面刷新
+ 1154              		.loc 1 589 12 view .LVU369
+ 1155 00a2 3F2B     		cmp	r3, #63
+ 1156 00a4 05D8     		bhi	.L85
+ 590:application/cmd/robot_cmd.c **** 
+ 1157              		.loc 1 590 13 is_stmt 1 view .LVU370
+ 590:application/cmd/robot_cmd.c **** 
+ 1158              		.loc 1 590 59 is_stmt 0 view .LVU371
+ 1159 00a6 134B     		ldr	r3, .L90+28
+ 1160 00a8 1A78     		ldrb	r2, [r3]	@ zero_extendqisi2
+ 1161 00aa 0121     		movs	r1, #1
+ 1162 00ac 61F38712 		bfi	r2, r1, #6, #2
+ 1163 00b0 1A70     		strb	r2, [r3]
+ 1164              	.L85:
+ 592:application/cmd/robot_cmd.c ****             rc_data[TEMP].key_count[KEY_PRESS][Key_B] = 0; 
+ 1165              		.loc 1 592 9 is_stmt 1 view .LVU372
+ 592:application/cmd/robot_cmd.c ****             rc_data[TEMP].key_count[KEY_PRESS][Key_B] = 0; 
+ 1166              		.loc 1 592 20 is_stmt 0 view .LVU373
+ 1167 00b2 0F4B     		ldr	r3, .L90+24
+ 1168 00b4 1B68     		ldr	r3, [r3]
+ 592:application/cmd/robot_cmd.c ****             rc_data[TEMP].key_count[KEY_PRESS][Key_B] = 0; 
+ 1169              		.loc 1 592 29 view .LVU374
+ 1170 00b6 B3F90820 		ldrsh	r2, [r3, #8]
+ 592:application/cmd/robot_cmd.c ****             rc_data[TEMP].key_count[KEY_PRESS][Key_B] = 0; 
+ 1171              		.loc 1 592 12 view .LVU375
+ 1172 00ba 12F5C87F 		cmn	r2, #400
+ 1173 00be CBDA     		bge	.L84
+ 593:application/cmd/robot_cmd.c ****         break;            
+ 1174              		.loc 1 593 13 is_stmt 1 view .LVU376
+ 593:application/cmd/robot_cmd.c ****         break;            
+ 1175              		.loc 1 593 55 is_stmt 0 view .LVU377
+ 1176 00c0 0022     		movs	r2, #0
+ 1177 00c2 83F82720 		strb	r2, [r3, #39]
+ 1178 00c6 C7E7     		b	.L84
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 36
+
+
+ 1179              	.L86:
+ 606:application/cmd/robot_cmd.c **** 
+ 1180              		.loc 1 606 9 is_stmt 1 view .LVU378
+ 606:application/cmd/robot_cmd.c **** 
+ 1181              		.loc 1 606 38 is_stmt 0 view .LVU379
+ 1182 00c8 07EE903A 		vmov	s15, r3	@ int
+ 1183 00cc F8EE677A 		vcvt.f32.u32	s15, s15
+ 1184 00d0 0A4B     		ldr	r3, .L90+36
+ 1185 00d2 C3ED047A 		vstr.32	s15, [r3, #16]
+ 1186 00d6 C8E7     		b	.L87
+ 1187              	.L91:
+ 1188              		.align	2
+ 1189              	.L90:
+ 1190 00d8 00000000 		.word	chassis_fetch_data
+ 1191 00dc 00000000 		.word	chassis_feed_sub
+ 1192 00e0 00000000 		.word	shoot_fetch_data
+ 1193 00e4 00000000 		.word	shoot_feed_sub
+ 1194 00e8 00000000 		.word	gimbal_fetch_data
+ 1195 00ec 00000000 		.word	gimbal_feed_sub
+ 1196 00f0 00000000 		.word	rc_data
+ 1197 00f4 00000000 		.word	ui_data
+ 1198 00f8 00000000 		.word	referee_data
+ 1199 00fc 00000000 		.word	chassis_cmd_send
+ 1200 0100 0000C842 		.word	1120403456
+ 1201 0104 00000000 		.word	pc_send_data
+ 1202 0108 00000000 		.word	chassis_cmd_pub
+ 1203 010c 00000000 		.word	shoot_cmd_send
+ 1204 0110 00000000 		.word	shoot_cmd_pub
+ 1205 0114 00000000 		.word	gimbal_cmd_send
+ 1206 0118 00000000 		.word	gimbal_cmd_pub
+ 1207              		.cfi_endproc
+ 1208              	.LFE283:
+ 1210              		.section	.bss.last_shoot_mode.0,"aw",%nobits
+ 1213              	last_shoot_mode.0:
+ 1214 0000 00       		.space	1
+ 1215              		.section	.bss.add_pitch.1,"aw",%nobits
+ 1216              		.align	2
+ 1219              	add_pitch.1:
+ 1220 0000 00000000 		.space	4
+ 1221              		.section	.bss.add_yaw.2,"aw",%nobits
+ 1222              		.align	2
+ 1225              	add_yaw.2:
+ 1226 0000 00000000 		.space	4
+ 1227              		.section	.bss.add_pitch.3,"aw",%nobits
+ 1228              		.align	2
+ 1231              	add_pitch.3:
+ 1232 0000 00000000 		.space	4
+ 1233              		.section	.bss.add_yaw.4,"aw",%nobits
+ 1234              		.align	2
+ 1237              	add_yaw.4:
+ 1238 0000 00000000 		.space	4
+ 1239              		.section	.bss.angle.5,"aw",%nobits
+ 1240              		.align	2
+ 1243              	angle.5:
+ 1244 0000 00000000 		.space	4
+ 1245              		.global	led_alarm
+ 1246              		.section	.bss.led_alarm,"aw",%nobits
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 37
+
+
+ 1247              		.align	2
+ 1250              	led_alarm:
+ 1251 0000 00000000 		.space	4
+ 1252              		.global	buzzer_alarm
+ 1253              		.section	.bss.buzzer_alarm,"aw",%nobits
+ 1254              		.align	2
+ 1257              	buzzer_alarm:
+ 1258 0000 00000000 		.space	4
+ 1259              		.section	.bss.robot_state,"aw",%nobits
+ 1262              	robot_state:
+ 1263 0000 00       		.space	1
+ 1264              		.section	.bss.ui_data,"aw",%nobits
+ 1265              		.align	2
+ 1268              	ui_data:
+ 1269 0000 00000000 		.space	19
+ 1269      00000000 
+ 1269      00000000 
+ 1269      00000000 
+ 1269      000000
+ 1270              		.section	.bss.referee_data,"aw",%nobits
+ 1271              		.align	2
+ 1274              	referee_data:
+ 1275 0000 00000000 		.space	4
+ 1276              		.section	.bss.shoot_fetch_data,"aw",%nobits
+ 1277              		.align	2
+ 1280              	shoot_fetch_data:
+ 1281              		.section	.bss.shoot_cmd_send,"aw",%nobits
+ 1282              		.align	2
+ 1285              	shoot_cmd_send:
+ 1286 0000 00000000 		.space	10
+ 1286      00000000 
+ 1286      0000
+ 1287              		.section	.bss.shoot_feed_sub,"aw",%nobits
+ 1288              		.align	2
+ 1291              	shoot_feed_sub:
+ 1292 0000 00000000 		.space	4
+ 1293              		.section	.bss.shoot_cmd_pub,"aw",%nobits
+ 1294              		.align	2
+ 1297              	shoot_cmd_pub:
+ 1298 0000 00000000 		.space	4
+ 1299              		.section	.bss.gimbal_fetch_data,"aw",%nobits
+ 1300              		.align	2
+ 1303              	gimbal_fetch_data:
+ 1304 0000 00000000 		.space	44
+ 1304      00000000 
+ 1304      00000000 
+ 1304      00000000 
+ 1304      00000000 
+ 1305              		.section	.bss.gimbal_cmd_send,"aw",%nobits
+ 1306              		.align	2
+ 1309              	gimbal_cmd_send:
+ 1310 0000 00000000 		.space	13
+ 1310      00000000 
+ 1310      00000000 
+ 1310      00
+ 1311              		.section	.bss.gimbal_feed_sub,"aw",%nobits
+ 1312              		.align	2
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 38
+
+
+ 1315              	gimbal_feed_sub:
+ 1316 0000 00000000 		.space	4
+ 1317              		.section	.bss.gimbal_cmd_pub,"aw",%nobits
+ 1318              		.align	2
+ 1321              	gimbal_cmd_pub:
+ 1322 0000 00000000 		.space	4
+ 1323              		.section	.bss.pc_send_data,"aw",%nobits
+ 1324              		.align	2
+ 1327              	pc_send_data:
+ 1328 0000 00000000 		.space	13
+ 1328      00000000 
+ 1328      00000000 
+ 1328      00
+ 1329              		.section	.bss.pc_recv_data,"aw",%nobits
+ 1330              		.align	2
+ 1333              	pc_recv_data:
+ 1334 0000 00000000 		.space	4
+ 1335              		.section	.bss.rc_data,"aw",%nobits
+ 1336              		.align	2
+ 1339              	rc_data:
+ 1340 0000 00000000 		.space	4
+ 1341              		.section	.bss.chassis_fetch_data,"aw",%nobits
+ 1342              		.align	2
+ 1345              	chassis_fetch_data:
+ 1346 0000 00000000 		.space	14
+ 1346      00000000 
+ 1346      00000000 
+ 1346      0000
+ 1347              		.section	.bss.chassis_cmd_send,"aw",%nobits
+ 1348              		.align	2
+ 1351              	chassis_cmd_send:
+ 1352 0000 00000000 		.space	53
+ 1352      00000000 
+ 1352      00000000 
+ 1352      00000000 
+ 1352      00000000 
+ 1353              		.section	.bss.chassis_feed_sub,"aw",%nobits
+ 1354              		.align	2
+ 1357              	chassis_feed_sub:
+ 1358 0000 00000000 		.space	4
+ 1359              		.section	.bss.chassis_cmd_pub,"aw",%nobits
+ 1360              		.align	2
+ 1363              	chassis_cmd_pub:
+ 1364 0000 00000000 		.space	4
+ 1365              		.section	.bss.robot_config,"aw",%nobits
+ 1366              		.align	2
+ 1369              	robot_config:
+ 1370 0000 00000000 		.space	4
+ 1371              		.section	.rodata
+ 1372              		.align	2
+ 1373              		.set	.LANCHOR0,. + 0
+ 1374              	.LC0:
+ 1375 0000 02       		.byte	2
+ 1376 0001 04       		.byte	4
+ 1377 0002 00       		.byte	0
+ 1378              		.text
+ 1379              	.Letext0:
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 39
+
+
+ 1380              		.file 2 "D:/Msys2/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1381              		.file 3 "D:/Msys2/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1382              		.file 4 "Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f407xx.h"
+ 1383              		.file 5 "Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f4xx.h"
+ 1384              		.file 6 "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_def.h"
+ 1385              		.file 7 "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h"
+ 1386              		.file 8 "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_can.h"
+ 1387              		.file 9 "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h"
+ 1388              		.file 10 "modules/imu/ins_task.h"
+ 1389              		.file 11 "modules/master_machine/master_process.h"
+ 1390              		.file 12 "bsp/can/bsp_can.h"
+ 1391              		.file 13 "modules/algorithm/controller.h"
+ 1392              		.file 14 "modules/motor/motor_def.h"
+ 1393              		.file 15 "application/config/config.h"
+ 1394              		.file 16 "application/robot_def.h"
+ 1395              		.file 17 "Inc/usart.h"
+ 1396              		.file 18 "modules/remote/remote_control.h"
+ 1397              		.file 19 "modules/referee/referee_protocol.h"
+ 1398              		.file 20 "modules/referee/rm_referee.h"
+ 1399              		.file 21 "modules/message_center/message_center.h"
+ 1400              		.file 22 "modules/alarm/alarm_def.h"
+ 1401              		.file 23 "modules/alarm/buzzer/buzzer.h"
+ 1402              		.file 24 "modules/alarm/led/led.h"
+ 1403              		.file 25 "modules/referee/referee_task.h"
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 40
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 robot_cmd.c
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:21     .text.CalcOffsetAngle:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:26     .text.CalcOffsetAngle:00000000 CalcOffsetAngle
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:163    .text.CalcOffsetAngle:000000e8 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1303   .bss.gimbal_fetch_data:00000000 gimbal_fetch_data
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1243   .bss.angle.5:00000000 angle.5
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1369   .bss.robot_config:00000000 robot_config
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1351   .bss.chassis_cmd_send:00000000 chassis_cmd_send
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:175    .text.RemoteControlSet:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:180    .text.RemoteControlSet:00000000 RemoteControlSet
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:532    .text.RemoteControlSet:000001e0 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1339   .bss.rc_data:00000000 rc_data
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1225   .bss.add_yaw.2:00000000 add_yaw.2
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1219   .bss.add_pitch.1:00000000 add_pitch.1
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1309   .bss.gimbal_cmd_send:00000000 gimbal_cmd_send
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1285   .bss.shoot_cmd_send:00000000 shoot_cmd_send
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1213   .bss.last_shoot_mode.0:00000000 last_shoot_mode.0
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1333   .bss.pc_recv_data:00000000 pc_recv_data
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:550    .text.MouseKeySet:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:555    .text.MouseKeySet:00000000 MouseKeySet
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:807    .text.MouseKeySet:00000164 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1237   .bss.add_yaw.4:00000000 add_yaw.4
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1231   .bss.add_pitch.3:00000000 add_pitch.3
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:819    .rodata.RobotCMDInit.str1.4:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:838    .text.RobotCMDInit:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:844    .text.RobotCMDInit:00000000 RobotCMDInit
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:994    .text.RobotCMDInit:000000b8 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1257   .bss.buzzer_alarm:00000000 buzzer_alarm
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1250   .bss.led_alarm:00000000 led_alarm
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1268   .bss.ui_data:00000000 ui_data
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1274   .bss.referee_data:00000000 referee_data
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1321   .bss.gimbal_cmd_pub:00000000 gimbal_cmd_pub
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1315   .bss.gimbal_feed_sub:00000000 gimbal_feed_sub
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1297   .bss.shoot_cmd_pub:00000000 shoot_cmd_pub
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1291   .bss.shoot_feed_sub:00000000 shoot_feed_sub
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1363   .bss.chassis_cmd_pub:00000000 chassis_cmd_pub
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1357   .bss.chassis_feed_sub:00000000 chassis_feed_sub
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1262   .bss.robot_state:00000000 robot_state
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1024   .text.RobotCMDTask:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1030   .text.RobotCMDTask:00000000 RobotCMDTask
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1190   .text.RobotCMDTask:000000d8 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1345   .bss.chassis_fetch_data:00000000 chassis_fetch_data
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1280   .bss.shoot_fetch_data:00000000 shoot_fetch_data
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1327   .bss.pc_send_data:00000000 pc_send_data
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1214   .bss.last_shoot_mode.0:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1216   .bss.add_pitch.1:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1222   .bss.add_yaw.2:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1228   .bss.add_pitch.3:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1234   .bss.add_yaw.4:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1240   .bss.angle.5:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1247   .bss.led_alarm:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1254   .bss.buzzer_alarm:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1263   .bss.robot_state:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1265   .bss.ui_data:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1271   .bss.referee_data:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1282   .bss.shoot_cmd_send:00000000 $d
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s 			page 41
+
+
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1288   .bss.shoot_feed_sub:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1294   .bss.shoot_cmd_pub:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1300   .bss.gimbal_fetch_data:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1306   .bss.gimbal_cmd_send:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1312   .bss.gimbal_feed_sub:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1318   .bss.gimbal_cmd_pub:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1324   .bss.pc_send_data:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1330   .bss.pc_recv_data:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1336   .bss.rc_data:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1342   .bss.chassis_fetch_data:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1348   .bss.chassis_cmd_send:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1354   .bss.chassis_feed_sub:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1360   .bss.chassis_cmd_pub:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1366   .bss.robot_config:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc99d9Ug.s:1372   .rodata:00000000 $d
+
+UNDEFINED SYMBOLS
+RobotConfigInit
+BuzzerRegister
+LEDRegister
+RemoteControlInit
+RobotPCInit
+UITaskInit
+PubRegister
+SubRegister
+huart3
+huart1
+huart6
+SubGetMessage
+PubPushMessage

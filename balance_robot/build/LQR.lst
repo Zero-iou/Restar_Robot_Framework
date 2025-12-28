@@ -1,0 +1,632 @@
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s 			page 1
+
+
+   1              		.cpu cortex-m4
+   2              		.arch armv7e-m
+   3              		.fpu fpv4-sp-d16
+   4              		.eabi_attribute 27, 1
+   5              		.eabi_attribute 28, 1
+   6              		.eabi_attribute 20, 1
+   7              		.eabi_attribute 21, 1
+   8              		.eabi_attribute 23, 3
+   9              		.eabi_attribute 24, 1
+  10              		.eabi_attribute 25, 1
+  11              		.eabi_attribute 26, 1
+  12              		.eabi_attribute 30, 1
+  13              		.eabi_attribute 34, 1
+  14              		.eabi_attribute 18, 4
+  15              		.file	"LQR.c"
+  16              		.text
+  17              	.Ltext0:
+  18              		.cfi_sections	.debug_frame
+  19              		.file 1 "modules/algorithm/LQR.c"
+  20              		.section	.text.LQR_Init,"ax",%progbits
+  21              		.align	1
+  22              		.global	LQR_Init
+  23              		.syntax unified
+  24              		.thumb
+  25              		.thumb_func
+  27              	LQR_Init:
+  28              	.LVL0:
+  29              	.LFB273:
+   1:modules/algorithm/LQR.c **** #include "LQR.h"
+   2:modules/algorithm/LQR.c **** 
+   3:modules/algorithm/LQR.c **** // float LQR_K_calc(float coe[40][6], float len_l, float len_r, uint8_t n)
+   4:modules/algorithm/LQR.c **** // {
+   5:modules/algorithm/LQR.c **** //     return coe[n][0] + coe[n][1] * len_l + coe[n][2] * len_r + coe[n][3] * len_l * len_l + coe[n
+   6:modules/algorithm/LQR.c **** // }
+   7:modules/algorithm/LQR.c **** 
+   8:modules/algorithm/LQR.c **** void LQR_Init(LQR_t *lqr, const float k[12][3]) {
+  30              		.loc 1 8 49 view -0
+  31              		.cfi_startproc
+  32              		@ args = 0, pretend = 0, frame = 0
+  33              		@ frame_needed = 0, uses_anonymous_args = 0
+   9:modules/algorithm/LQR.c ****   for (uint8_t i = 0; i < 12; ++i) {
+  34              		.loc 1 9 3 view .LVU1
+  35              	.LBB2:
+  36              		.loc 1 9 8 view .LVU2
+  37              		.loc 1 9 16 is_stmt 0 view .LVU3
+  38 0000 4FF0000C 		mov	ip, #0
+  39              		.loc 1 9 3 view .LVU4
+  40 0004 05E0     		b	.L7
+  41              	.LVL1:
+  42              	.L14:
+  43              	.LCFI0:
+  44              		.cfi_def_cfa_offset 4
+  45              		.cfi_offset 14, -4
+  46              		.loc 1 9 3 view .LVU5
+  47              	.LBE2:
+  10:modules/algorithm/LQR.c ****     for (uint8_t j = 0; j < 3; ++j) {
+  11:modules/algorithm/LQR.c ****       lqr->k[i][j] = k[i][j];
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s 			page 2
+
+
+  12:modules/algorithm/LQR.c ****     }
+  13:modules/algorithm/LQR.c ****   }
+  14:modules/algorithm/LQR.c **** }
+  48              		.loc 1 14 1 view .LVU6
+  49 0006 5DF804FB 		ldr	pc, [sp], #4
+  50              	.L13:
+  51              	.LCFI1:
+  52              		.cfi_def_cfa_offset 0
+  53              		.cfi_restore 14
+  54              	.LBB6:
+   9:modules/algorithm/LQR.c ****   for (uint8_t i = 0; i < 12; ++i) {
+  55              		.loc 1 9 31 is_stmt 1 discriminator 2 view .LVU7
+  56 000a 0CF1010C 		add	ip, ip, #1
+  57              	.LVL2:
+   9:modules/algorithm/LQR.c ****   for (uint8_t i = 0; i < 12; ++i) {
+  58              		.loc 1 9 31 is_stmt 0 discriminator 2 view .LVU8
+  59 000e 5FFA8CFC 		uxtb	ip, ip
+  60              	.LVL3:
+  61              	.L7:
+   9:modules/algorithm/LQR.c ****   for (uint8_t i = 0; i < 12; ++i) {
+  62              		.loc 1 9 25 is_stmt 1 discriminator 1 view .LVU9
+  63 0012 BCF10B0F 		cmp	ip, #11
+  64 0016 1FD8     		bhi	.L12
+  65              	.LBB3:
+  10:modules/algorithm/LQR.c ****     for (uint8_t j = 0; j < 3; ++j) {
+  66              		.loc 1 10 18 is_stmt 0 view .LVU10
+  67 0018 0023     		movs	r3, #0
+  68              	.LVL4:
+  10:modules/algorithm/LQR.c ****     for (uint8_t j = 0; j < 3; ++j) {
+  69              		.loc 1 10 27 is_stmt 1 discriminator 1 view .LVU11
+  70 001a 022B     		cmp	r3, #2
+  71 001c F5D8     		bhi	.L13
+  72              	.LBE3:
+  73              	.LBE6:
+   8:modules/algorithm/LQR.c ****   for (uint8_t i = 0; i < 12; ++i) {
+  74              		.loc 1 8 49 is_stmt 0 view .LVU12
+  75 001e 00B5     		push	{lr}
+  76              	.LCFI2:
+  77              		.cfi_def_cfa_offset 4
+  78              		.cfi_offset 14, -4
+  79              	.L3:
+  80              	.LBB7:
+  81              	.LBB4:
+  11:modules/algorithm/LQR.c ****     }
+  82              		.loc 1 11 7 is_stmt 1 view .LVU13
+  11:modules/algorithm/LQR.c ****     }
+  83              		.loc 1 11 23 is_stmt 0 view .LVU14
+  84 0020 0CEB4C02 		add	r2, ip, ip, lsl #1
+  85 0024 01EB8202 		add	r2, r1, r2, lsl #2
+  11:modules/algorithm/LQR.c ****     }
+  86              		.loc 1 11 26 view .LVU15
+  87 0028 02EB8302 		add	r2, r2, r3, lsl #2
+  88 002c D2F800E0 		ldr	lr, [r2]	@ float
+  11:modules/algorithm/LQR.c ****     }
+  89              		.loc 1 11 20 view .LVU16
+  90 0030 0CEB4C02 		add	r2, ip, ip, lsl #1
+  91 0034 1A44     		add	r2, r2, r3
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s 			page 3
+
+
+  92 0036 00EB8202 		add	r2, r0, r2, lsl #2
+  93 003a C2F804E0 		str	lr, [r2, #4]	@ float
+  10:modules/algorithm/LQR.c ****     for (uint8_t j = 0; j < 3; ++j) {
+  94              		.loc 1 10 32 is_stmt 1 discriminator 3 view .LVU17
+  95 003e 0133     		adds	r3, r3, #1
+  96              	.LVL5:
+  10:modules/algorithm/LQR.c ****     for (uint8_t j = 0; j < 3; ++j) {
+  97              		.loc 1 10 32 is_stmt 0 discriminator 3 view .LVU18
+  98 0040 DBB2     		uxtb	r3, r3
+  99              	.LVL6:
+ 100              	.L4:
+  10:modules/algorithm/LQR.c ****     for (uint8_t j = 0; j < 3; ++j) {
+ 101              		.loc 1 10 27 is_stmt 1 discriminator 1 view .LVU19
+ 102 0042 022B     		cmp	r3, #2
+ 103 0044 ECD9     		bls	.L3
+ 104              	.LBE4:
+   9:modules/algorithm/LQR.c ****     for (uint8_t j = 0; j < 3; ++j) {
+ 105              		.loc 1 9 31 discriminator 2 view .LVU20
+ 106 0046 0CF1010C 		add	ip, ip, #1
+ 107              	.LVL7:
+   9:modules/algorithm/LQR.c ****     for (uint8_t j = 0; j < 3; ++j) {
+ 108              		.loc 1 9 31 is_stmt 0 discriminator 2 view .LVU21
+ 109 004a 5FFA8CFC 		uxtb	ip, ip
+ 110              	.LVL8:
+   9:modules/algorithm/LQR.c ****     for (uint8_t j = 0; j < 3; ++j) {
+ 111              		.loc 1 9 25 is_stmt 1 discriminator 1 view .LVU22
+ 112 004e BCF10B0F 		cmp	ip, #11
+ 113 0052 D8D8     		bhi	.L14
+ 114              	.LBB5:
+  10:modules/algorithm/LQR.c ****       lqr->k[i][j] = k[i][j];
+ 115              		.loc 1 10 18 is_stmt 0 view .LVU23
+ 116 0054 0023     		movs	r3, #0
+ 117              	.LVL9:
+  10:modules/algorithm/LQR.c ****       lqr->k[i][j] = k[i][j];
+ 118              		.loc 1 10 18 view .LVU24
+ 119 0056 F4E7     		b	.L4
+ 120              	.LVL10:
+ 121              	.L12:
+ 122              	.LCFI3:
+ 123              		.cfi_def_cfa_offset 0
+ 124              		.cfi_restore 14
+  10:modules/algorithm/LQR.c ****       lqr->k[i][j] = k[i][j];
+ 125              		.loc 1 10 18 view .LVU25
+ 126 0058 7047     		bx	lr
+ 127              	.LBE5:
+ 128              	.LBE7:
+ 129              		.cfi_endproc
+ 130              	.LFE273:
+ 132              		.section	.text.LQR_SetSpeed,"ax",%progbits
+ 133              		.align	1
+ 134              		.global	LQR_SetSpeed
+ 135              		.syntax unified
+ 136              		.thumb
+ 137              		.thumb_func
+ 139              	LQR_SetSpeed:
+ 140              	.LVL11:
+ 141              	.LFB274:
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s 			page 4
+
+
+  15:modules/algorithm/LQR.c **** 
+  16:modules/algorithm/LQR.c **** void LQR_SetSpeed(LQR_t *lqr, float tar_vx) {
+ 142              		.loc 1 16 45 is_stmt 1 view -0
+ 143              		.cfi_startproc
+ 144              		@ args = 0, pretend = 0, frame = 0
+ 145              		@ frame_needed = 0, uses_anonymous_args = 0
+ 146              		@ link register save eliminated.
+  17:modules/algorithm/LQR.c ****   lqr->target_speed = tar_vx;
+ 147              		.loc 1 17 3 view .LVU27
+ 148              		.loc 1 17 21 is_stmt 0 view .LVU28
+ 149 0000 80ED000A 		vstr.32	s0, [r0]
+  18:modules/algorithm/LQR.c **** }
+ 150              		.loc 1 18 1 view .LVU29
+ 151 0004 7047     		bx	lr
+ 152              		.cfi_endproc
+ 153              	.LFE274:
+ 155              		.section	.text.LQR_Calc,"ax",%progbits
+ 156              		.align	1
+ 157              		.global	LQR_Calc
+ 158              		.syntax unified
+ 159              		.thumb
+ 160              		.thumb_func
+ 162              	LQR_Calc:
+ 163              	.LVL12:
+ 164              	.LFB275:
+  19:modules/algorithm/LQR.c **** 
+  20:modules/algorithm/LQR.c **** void LQR_Calc(LQR_t *lqr, VMC_t vmc, float dist_, float vel_, float phi_, float dphi_) {
+ 165              		.loc 1 20 88 is_stmt 1 view -0
+ 166              		.cfi_startproc
+ 167              		@ args = 92, pretend = 16, frame = 48
+ 168              		@ frame_needed = 0, uses_anonymous_args = 0
+ 169              		.loc 1 20 88 is_stmt 0 view .LVU31
+ 170 0000 84B0     		sub	sp, sp, #16
+ 171              	.LCFI4:
+ 172              		.cfi_def_cfa_offset 16
+ 173 0002 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 174              	.LCFI5:
+ 175              		.cfi_def_cfa_offset 52
+ 176              		.cfi_offset 4, -52
+ 177              		.cfi_offset 5, -48
+ 178              		.cfi_offset 6, -44
+ 179              		.cfi_offset 7, -40
+ 180              		.cfi_offset 8, -36
+ 181              		.cfi_offset 9, -32
+ 182              		.cfi_offset 10, -28
+ 183              		.cfi_offset 11, -24
+ 184              		.cfi_offset 14, -20
+ 185 0006 2DED068B 		vpush.64	{d8, d9, d10}
+ 186              	.LCFI6:
+ 187              		.cfi_def_cfa_offset 76
+ 188              		.cfi_offset 80, -76
+ 189              		.cfi_offset 81, -72
+ 190              		.cfi_offset 82, -68
+ 191              		.cfi_offset 83, -64
+ 192              		.cfi_offset 84, -60
+ 193              		.cfi_offset 85, -56
+ 194 000a 8DB0     		sub	sp, sp, #52
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s 			page 5
+
+
+ 195              	.LCFI7:
+ 196              		.cfi_def_cfa_offset 128
+ 197 000c 0546     		mov	r5, r0
+ 198 000e 1DA8     		add	r0, sp, #116
+ 199              	.LVL13:
+ 200              		.loc 1 20 88 view .LVU32
+ 201 0010 80E80E00 		stm	r0, {r1, r2, r3}
+ 202 0014 F0EE40AA 		vmov.f32	s21, s0
+ 203 0018 B0EE60AA 		vmov.f32	s20, s1
+ 204 001c F0EE419A 		vmov.f32	s19, s2
+ 205 0020 B0EE619A 		vmov.f32	s18, s3
+  21:modules/algorithm/LQR.c ****   
+  22:modules/algorithm/LQR.c ****     float T_K_[2][6];
+ 206              		.loc 1 22 5 is_stmt 1 view .LVU33
+  23:modules/algorithm/LQR.c ****     for (uint8_t i = 0; i < 2; ++i) {
+ 207              		.loc 1 23 5 view .LVU34
+ 208              	.LBB8:
+ 209              		.loc 1 23 10 view .LVU35
+ 210              	.LVL14:
+ 211              		.loc 1 23 18 is_stmt 0 view .LVU36
+ 212 0024 0026     		movs	r6, #0
+ 213              		.loc 1 23 5 view .LVU37
+ 214 0026 CBE0     		b	.L17
+ 215              	.LVL15:
+ 216              	.L18:
+ 217              	.LBB9:
+  24:modules/algorithm/LQR.c ****       uint8_t j = i * 6;
+ 218              		.loc 1 24 7 is_stmt 1 view .LVU38
+ 219              		.loc 1 24 15 is_stmt 0 view .LVU39
+ 220 0028 06EB4604 		add	r4, r6, r6, lsl #1
+ 221 002c 6400     		lsls	r4, r4, #1
+ 222 002e E4B2     		uxtb	r4, r4
+ 223              	.LVL16:
+  25:modules/algorithm/LQR.c ****       T_K_[i][0] =
+ 224              		.loc 1 25 7 is_stmt 1 view .LVU40
+  26:modules/algorithm/LQR.c ****           (lqr->k[j + 0][0] * powf(vmc.l0, 2) + lqr->k[j + 0][1] * vmc.l0 + lqr->k[j + 0][2]) * -vm
+ 225              		.loc 1 26 25 is_stmt 0 view .LVU41
+ 226 0030 04EB4407 		add	r7, r4, r4, lsl #1
+ 227 0034 05EB8707 		add	r7, r5, r7, lsl #2
+ 228 0038 D7ED018A 		vldr.32	s17, [r7, #4]
+ 229              		.loc 1 26 31 view .LVU42
+ 230 003c 9DED2A8A 		vldr.32	s16, [sp, #168]
+ 231 0040 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 232 0044 B0EE480A 		vmov.f32	s0, s16
+ 233 0048 FFF7FEFF 		bl	powf
+ 234              	.LVL17:
+ 235              		.loc 1 26 29 discriminator 1 view .LVU43
+ 236 004c 68EE808A 		vmul.f32	s17, s17, s0
+ 237              		.loc 1 26 62 discriminator 1 view .LVU44
+ 238 0050 D7ED027A 		vldr.32	s15, [r7, #8]
+ 239              		.loc 1 26 66 discriminator 1 view .LVU45
+ 240 0054 68EE277A 		vmul.f32	s15, s16, s15
+ 241              		.loc 1 26 47 discriminator 1 view .LVU46
+ 242 0058 78EEA78A 		vadd.f32	s17, s17, s15
+ 243              		.loc 1 26 90 discriminator 1 view .LVU47
+ 244 005c D7ED037A 		vldr.32	s15, [r7, #12]
+ 245              		.loc 1 26 75 discriminator 1 view .LVU48
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s 			page 6
+
+
+ 246 0060 78EEA78A 		vadd.f32	s17, s17, s15
+ 247              		.loc 1 26 95 view .LVU49
+ 248 0064 DDED277A 		vldr.32	s15, [sp, #156]
+ 249 0068 67EEE87A 		vnmul.f32	s15, s15, s17
+  25:modules/algorithm/LQR.c ****       T_K_[i][0] =
+ 250              		.loc 1 25 18 view .LVU50
+ 251 006c 4FEA4608 		lsl	r8, r6, #1
+ 252 0070 06EB4607 		add	r7, r6, r6, lsl #1
+ 253 0074 0CAB     		add	r3, sp, #48
+ 254 0076 03EBC707 		add	r7, r3, r7, lsl #3
+ 255 007a 47ED0C7A 		vstr.32	s15, [r7, #-48]
+  27:modules/algorithm/LQR.c ****       T_K_[i][1] =
+ 256              		.loc 1 27 7 is_stmt 1 view .LVU51
+  28:modules/algorithm/LQR.c ****           (lqr->k[j + 1][0] * powf(vmc.l0, 2) + lqr->k[j + 1][1] * vmc.l0 + lqr->k[j + 1][2]) * -vm
+ 257              		.loc 1 28 21 is_stmt 0 view .LVU52
+ 258 007e 04F1010A 		add	r10, r4, #1
+ 259              		.loc 1 28 25 view .LVU53
+ 260 0082 0AEB4A0B 		add	fp, r10, r10, lsl #1
+ 261 0086 05EB8B0B 		add	fp, r5, fp, lsl #2
+ 262 008a DBED018A 		vldr.32	s17, [fp, #4]
+ 263              		.loc 1 28 31 view .LVU54
+ 264 008e F0EE000A 		vmov.f32	s1, #2.0e+0
+ 265 0092 B0EE480A 		vmov.f32	s0, s16
+ 266 0096 FFF7FEFF 		bl	powf
+ 267              	.LVL18:
+ 268              		.loc 1 28 29 discriminator 1 view .LVU55
+ 269 009a 68EE808A 		vmul.f32	s17, s17, s0
+ 270              		.loc 1 28 62 discriminator 1 view .LVU56
+ 271 009e DBED027A 		vldr.32	s15, [fp, #8]
+ 272              		.loc 1 28 66 discriminator 1 view .LVU57
+ 273 00a2 68EE277A 		vmul.f32	s15, s16, s15
+ 274              		.loc 1 28 47 discriminator 1 view .LVU58
+ 275 00a6 78EEA78A 		vadd.f32	s17, s17, s15
+ 276              		.loc 1 28 90 discriminator 1 view .LVU59
+ 277 00aa DBED037A 		vldr.32	s15, [fp, #12]
+ 278              		.loc 1 28 75 discriminator 1 view .LVU60
+ 279 00ae 78EEA78A 		vadd.f32	s17, s17, s15
+ 280              		.loc 1 28 95 view .LVU61
+ 281 00b2 DDED287A 		vldr.32	s15, [sp, #160]
+ 282 00b6 67EEE87A 		vnmul.f32	s15, s15, s17
+  27:modules/algorithm/LQR.c ****       T_K_[i][1] =
+ 283              		.loc 1 27 18 view .LVU62
+ 284 00ba 47ED0B7A 		vstr.32	s15, [r7, #-44]
+  29:modules/algorithm/LQR.c ****       T_K_[i][2] =
+ 285              		.loc 1 29 7 is_stmt 1 view .LVU63
+  30:modules/algorithm/LQR.c ****           (lqr->k[j + 2][0] * powf(vmc.l0, 2) + lqr->k[j + 2][1] * vmc.l0 + lqr->k[j + 2][2]) * -di
+ 286              		.loc 1 30 21 is_stmt 0 view .LVU64
+ 287 00be 04F1020A 		add	r10, r4, #2
+ 288              		.loc 1 30 25 view .LVU65
+ 289 00c2 0AEB4A0B 		add	fp, r10, r10, lsl #1
+ 290 00c6 05EB8B0B 		add	fp, r5, fp, lsl #2
+ 291 00ca DBED018A 		vldr.32	s17, [fp, #4]
+ 292              		.loc 1 30 31 view .LVU66
+ 293 00ce F0EE000A 		vmov.f32	s1, #2.0e+0
+ 294 00d2 B0EE480A 		vmov.f32	s0, s16
+ 295 00d6 FFF7FEFF 		bl	powf
+ 296              	.LVL19:
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s 			page 7
+
+
+ 297              		.loc 1 30 29 discriminator 1 view .LVU67
+ 298 00da 68EE808A 		vmul.f32	s17, s17, s0
+ 299              		.loc 1 30 62 discriminator 1 view .LVU68
+ 300 00de DBED027A 		vldr.32	s15, [fp, #8]
+ 301              		.loc 1 30 66 discriminator 1 view .LVU69
+ 302 00e2 68EE277A 		vmul.f32	s15, s16, s15
+ 303              		.loc 1 30 47 discriminator 1 view .LVU70
+ 304 00e6 78EEA78A 		vadd.f32	s17, s17, s15
+ 305              		.loc 1 30 90 discriminator 1 view .LVU71
+ 306 00ea DBED037A 		vldr.32	s15, [fp, #12]
+ 307              		.loc 1 30 75 discriminator 1 view .LVU72
+ 308 00ee 78EEA78A 		vadd.f32	s17, s17, s15
+ 309              		.loc 1 30 95 view .LVU73
+ 310 00f2 6AEEE88A 		vnmul.f32	s17, s21, s17
+  29:modules/algorithm/LQR.c ****       T_K_[i][2] =
+ 311              		.loc 1 29 18 view .LVU74
+ 312 00f6 47ED0A8A 		vstr.32	s17, [r7, #-40]
+  31:modules/algorithm/LQR.c ****       T_K_[i][3] = (lqr->k[j + 3][0] * powf(vmc.l0, 2) + lqr->k[j + 3][1] * vmc.l0 + lqr->k[j + 3][
+ 313              		.loc 1 31 7 is_stmt 1 view .LVU75
+ 314              		.loc 1 31 30 is_stmt 0 view .LVU76
+ 315 00fa 04F1030A 		add	r10, r4, #3
+ 316              		.loc 1 31 34 view .LVU77
+ 317 00fe 0AEB4A0B 		add	fp, r10, r10, lsl #1
+ 318 0102 05EB8B0B 		add	fp, r5, fp, lsl #2
+ 319 0106 DBED018A 		vldr.32	s17, [fp, #4]
+ 320              		.loc 1 31 40 view .LVU78
+ 321 010a F0EE000A 		vmov.f32	s1, #2.0e+0
+ 322 010e B0EE480A 		vmov.f32	s0, s16
+ 323 0112 FFF7FEFF 		bl	powf
+ 324              	.LVL20:
+ 325              		.loc 1 31 38 discriminator 1 view .LVU79
+ 326 0116 68EE808A 		vmul.f32	s17, s17, s0
+ 327              		.loc 1 31 71 discriminator 1 view .LVU80
+ 328 011a DBED027A 		vldr.32	s15, [fp, #8]
+ 329              		.loc 1 31 75 discriminator 1 view .LVU81
+ 330 011e 68EE277A 		vmul.f32	s15, s16, s15
+ 331              		.loc 1 31 56 discriminator 1 view .LVU82
+ 332 0122 78EEA78A 		vadd.f32	s17, s17, s15
+ 333              		.loc 1 31 99 discriminator 1 view .LVU83
+ 334 0126 DBED037A 		vldr.32	s15, [fp, #12]
+ 335              		.loc 1 31 84 discriminator 1 view .LVU84
+ 336 012a 78EEA78A 		vadd.f32	s17, s17, s15
+  32:modules/algorithm/LQR.c ****                    (lqr->target_speed - vel_);
+ 337              		.loc 1 32 24 view .LVU85
+ 338 012e D5ED007A 		vldr.32	s15, [r5]
+ 339              		.loc 1 32 39 view .LVU86
+ 340 0132 77EECA7A 		vsub.f32	s15, s15, s20
+  31:modules/algorithm/LQR.c ****       T_K_[i][3] = (lqr->k[j + 3][0] * powf(vmc.l0, 2) + lqr->k[j + 3][1] * vmc.l0 + lqr->k[j + 3][
+ 341              		.loc 1 31 104 view .LVU87
+ 342 0136 68EEA78A 		vmul.f32	s17, s17, s15
+  31:modules/algorithm/LQR.c ****       T_K_[i][3] = (lqr->k[j + 3][0] * powf(vmc.l0, 2) + lqr->k[j + 3][1] * vmc.l0 + lqr->k[j + 3][
+ 343              		.loc 1 31 18 view .LVU88
+ 344 013a 47ED098A 		vstr.32	s17, [r7, #-36]
+  33:modules/algorithm/LQR.c ****       T_K_[i][4] =
+ 345              		.loc 1 33 7 is_stmt 1 view .LVU89
+  34:modules/algorithm/LQR.c ****           (lqr->k[j + 4][0] * powf(vmc.l0, 2) + lqr->k[j + 4][1] * vmc.l0 + lqr->k[j + 4][2]) * -ph
+ 346              		.loc 1 34 21 is_stmt 0 view .LVU90
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s 			page 8
+
+
+ 347 013e 04F1040A 		add	r10, r4, #4
+ 348              		.loc 1 34 25 view .LVU91
+ 349 0142 0AEB4A0B 		add	fp, r10, r10, lsl #1
+ 350 0146 05EB8B0B 		add	fp, r5, fp, lsl #2
+ 351 014a DBED018A 		vldr.32	s17, [fp, #4]
+ 352              		.loc 1 34 31 view .LVU92
+ 353 014e F0EE000A 		vmov.f32	s1, #2.0e+0
+ 354 0152 B0EE480A 		vmov.f32	s0, s16
+ 355 0156 FFF7FEFF 		bl	powf
+ 356              	.LVL21:
+ 357              		.loc 1 34 29 discriminator 1 view .LVU93
+ 358 015a 68EE808A 		vmul.f32	s17, s17, s0
+ 359              		.loc 1 34 62 discriminator 1 view .LVU94
+ 360 015e DBED027A 		vldr.32	s15, [fp, #8]
+ 361              		.loc 1 34 66 discriminator 1 view .LVU95
+ 362 0162 68EE277A 		vmul.f32	s15, s16, s15
+ 363              		.loc 1 34 47 discriminator 1 view .LVU96
+ 364 0166 78EEA78A 		vadd.f32	s17, s17, s15
+ 365              		.loc 1 34 90 discriminator 1 view .LVU97
+ 366 016a DBED037A 		vldr.32	s15, [fp, #12]
+ 367              		.loc 1 34 75 discriminator 1 view .LVU98
+ 368 016e 78EEA78A 		vadd.f32	s17, s17, s15
+ 369              		.loc 1 34 95 view .LVU99
+ 370 0172 69EEE88A 		vnmul.f32	s17, s19, s17
+  33:modules/algorithm/LQR.c ****       T_K_[i][4] =
+ 371              		.loc 1 33 18 view .LVU100
+ 372 0176 47ED088A 		vstr.32	s17, [r7, #-32]
+  35:modules/algorithm/LQR.c ****       T_K_[i][5] =
+ 373              		.loc 1 35 7 is_stmt 1 view .LVU101
+  36:modules/algorithm/LQR.c ****           (lqr->k[j + 5][0] * powf(vmc.l0, 2) + lqr->k[j + 5][1] * vmc.l0 + lqr->k[j + 5][2]) * -dp
+ 374              		.loc 1 36 21 is_stmt 0 view .LVU102
+ 375 017a 0534     		adds	r4, r4, #5
+ 376              	.LVL22:
+ 377              		.loc 1 36 25 view .LVU103
+ 378 017c 04EB4409 		add	r9, r4, r4, lsl #1
+ 379 0180 05EB8909 		add	r9, r5, r9, lsl #2
+ 380 0184 D9ED018A 		vldr.32	s17, [r9, #4]
+ 381              		.loc 1 36 31 view .LVU104
+ 382 0188 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 383 018c B0EE480A 		vmov.f32	s0, s16
+ 384 0190 FFF7FEFF 		bl	powf
+ 385              	.LVL23:
+ 386              		.loc 1 36 29 discriminator 1 view .LVU105
+ 387 0194 68EE808A 		vmul.f32	s17, s17, s0
+ 388              		.loc 1 36 62 discriminator 1 view .LVU106
+ 389 0198 D9ED027A 		vldr.32	s15, [r9, #8]
+ 390              		.loc 1 36 66 discriminator 1 view .LVU107
+ 391 019c 68EE277A 		vmul.f32	s15, s16, s15
+ 392              		.loc 1 36 47 discriminator 1 view .LVU108
+ 393 01a0 78EEA78A 		vadd.f32	s17, s17, s15
+ 394              		.loc 1 36 90 discriminator 1 view .LVU109
+ 395 01a4 D9ED037A 		vldr.32	s15, [r9, #12]
+ 396              		.loc 1 36 75 discriminator 1 view .LVU110
+ 397 01a8 78EEA78A 		vadd.f32	s17, s17, s15
+ 398              		.loc 1 36 95 view .LVU111
+ 399 01ac 69EE688A 		vnmul.f32	s17, s18, s17
+  35:modules/algorithm/LQR.c ****       T_K_[i][5] =
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s 			page 9
+
+
+ 400              		.loc 1 35 18 view .LVU112
+ 401 01b0 B044     		add	r8, r8, r6
+ 402 01b2 0CAB     		add	r3, sp, #48
+ 403 01b4 03EBC808 		add	r8, r3, r8, lsl #3
+ 404 01b8 48ED078A 		vstr.32	s17, [r8, #-28]
+ 405              	.LBE9:
+  23:modules/algorithm/LQR.c ****       uint8_t j = i * 6;
+ 406              		.loc 1 23 32 is_stmt 1 discriminator 3 view .LVU113
+ 407 01bc 0136     		adds	r6, r6, #1
+ 408              	.LVL24:
+  23:modules/algorithm/LQR.c ****       uint8_t j = i * 6;
+ 409              		.loc 1 23 32 is_stmt 0 discriminator 3 view .LVU114
+ 410 01be F6B2     		uxtb	r6, r6
+ 411              	.LVL25:
+ 412              	.L17:
+  23:modules/algorithm/LQR.c ****       uint8_t j = i * 6;
+ 413              		.loc 1 23 27 is_stmt 1 discriminator 1 view .LVU115
+ 414 01c0 012E     		cmp	r6, #1
+ 415 01c2 7FF631AF 		bls	.L18
+ 416              	.LBE8:
+ 417              	.LBB10:
+  37:modules/algorithm/LQR.c ****     }
+  38:modules/algorithm/LQR.c ****   
+  39:modules/algorithm/LQR.c ****     // if (vmc.fn < 20.0f) {
+  40:modules/algorithm/LQR.c ****     //   for (uint8_t i = 0; i < 6; ++i) {
+  41:modules/algorithm/LQR.c ****     //     T_K_[0][i] = 0.0f;
+  42:modules/algorithm/LQR.c ****     //   };
+  43:modules/algorithm/LQR.c ****     //   T_K_[1][2] = T_K_[1][3] = T_K_[1][4] = T_K_[1][5] = 0.0f;
+  44:modules/algorithm/LQR.c ****     // }
+  45:modules/algorithm/LQR.c ****   
+  46:modules/algorithm/LQR.c ****     for (uint8_t i = 0; i < 2; ++i) {
+ 418              		.loc 1 46 18 is_stmt 0 view .LVU116
+ 419 01c6 0023     		movs	r3, #0
+ 420 01c8 22E0     		b	.L19
+ 421              	.LVL26:
+ 422              	.L20:
+  47:modules/algorithm/LQR.c ****       lqr->T_[i] = T_K_[i][0] + T_K_[i][1] + T_K_[i][2] + T_K_[i][3] + T_K_[i][4] +
+ 423              		.loc 1 47 7 is_stmt 1 view .LVU117
+ 424              		.loc 1 47 27 is_stmt 0 view .LVU118
+ 425 01ca 03EB4302 		add	r2, r3, r3, lsl #1
+ 426 01ce 0CA9     		add	r1, sp, #48
+ 427 01d0 01EBC202 		add	r2, r1, r2, lsl #3
+ 428 01d4 52ED0C7A 		vldr.32	s15, [r2, #-48]
+ 429              		.loc 1 47 40 view .LVU119
+ 430 01d8 12ED0B7A 		vldr.32	s14, [r2, #-44]
+ 431              		.loc 1 47 31 view .LVU120
+ 432 01dc 77EE877A 		vadd.f32	s15, s15, s14
+ 433              		.loc 1 47 53 view .LVU121
+ 434 01e0 12ED0A7A 		vldr.32	s14, [r2, #-40]
+ 435              		.loc 1 47 44 view .LVU122
+ 436 01e4 77EE877A 		vadd.f32	s15, s15, s14
+ 437              		.loc 1 47 66 view .LVU123
+ 438 01e8 12ED097A 		vldr.32	s14, [r2, #-36]
+ 439              		.loc 1 47 57 view .LVU124
+ 440 01ec 77EE877A 		vadd.f32	s15, s15, s14
+ 441              		.loc 1 47 79 view .LVU125
+ 442 01f0 12ED087A 		vldr.32	s14, [r2, #-32]
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s 			page 10
+
+
+ 443              		.loc 1 47 70 view .LVU126
+ 444 01f4 77EE877A 		vadd.f32	s15, s15, s14
+  48:modules/algorithm/LQR.c ****               T_K_[i][5];
+ 445              		.loc 1 48 22 view .LVU127
+ 446 01f8 12ED077A 		vldr.32	s14, [r2, #-28]
+  47:modules/algorithm/LQR.c ****       lqr->T_[i] = T_K_[i][0] + T_K_[i][1] + T_K_[i][2] + T_K_[i][3] + T_K_[i][4] +
+ 447              		.loc 1 47 83 view .LVU128
+ 448 01fc 77EE877A 		vadd.f32	s15, s15, s14
+  47:modules/algorithm/LQR.c ****       lqr->T_[i] = T_K_[i][0] + T_K_[i][1] + T_K_[i][2] + T_K_[i][3] + T_K_[i][4] +
+ 449              		.loc 1 47 18 view .LVU129
+ 450 0200 03F12402 		add	r2, r3, #36
+ 451 0204 05EB8202 		add	r2, r5, r2, lsl #2
+ 452 0208 C2ED017A 		vstr.32	s15, [r2, #4]
+  46:modules/algorithm/LQR.c ****       lqr->T_[i] = T_K_[i][0] + T_K_[i][1] + T_K_[i][2] + T_K_[i][3] + T_K_[i][4] +
+ 453              		.loc 1 46 32 is_stmt 1 discriminator 3 view .LVU130
+ 454 020c 0133     		adds	r3, r3, #1
+ 455              	.LVL27:
+  46:modules/algorithm/LQR.c ****       lqr->T_[i] = T_K_[i][0] + T_K_[i][1] + T_K_[i][2] + T_K_[i][3] + T_K_[i][4] +
+ 456              		.loc 1 46 32 is_stmt 0 discriminator 3 view .LVU131
+ 457 020e DBB2     		uxtb	r3, r3
+ 458              	.LVL28:
+ 459              	.L19:
+  46:modules/algorithm/LQR.c ****       lqr->T_[i] = T_K_[i][0] + T_K_[i][1] + T_K_[i][2] + T_K_[i][3] + T_K_[i][4] +
+ 460              		.loc 1 46 27 is_stmt 1 discriminator 1 view .LVU132
+ 461 0210 012B     		cmp	r3, #1
+ 462 0212 DAD9     		bls	.L20
+ 463              	.LBE10:
+  49:modules/algorithm/LQR.c ****     }
+  50:modules/algorithm/LQR.c ****   }
+ 464              		.loc 1 50 3 is_stmt 0 view .LVU133
+ 465 0214 0DB0     		add	sp, sp, #52
+ 466              	.LCFI8:
+ 467              		.cfi_def_cfa_offset 76
+ 468              		@ sp needed
+ 469 0216 BDEC068B 		vldm	sp!, {d8-d10}
+ 470              	.LCFI9:
+ 471              		.cfi_restore 84
+ 472              		.cfi_restore 85
+ 473              		.cfi_restore 82
+ 474              		.cfi_restore 83
+ 475              		.cfi_restore 80
+ 476              		.cfi_restore 81
+ 477              		.cfi_def_cfa_offset 52
+ 478              	.LVL29:
+ 479              		.loc 1 50 3 view .LVU134
+ 480 021a BDE8F04F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 481              	.LCFI10:
+ 482              		.cfi_restore 14
+ 483              		.cfi_restore 11
+ 484              		.cfi_restore 10
+ 485              		.cfi_restore 9
+ 486              		.cfi_restore 8
+ 487              		.cfi_restore 7
+ 488              		.cfi_restore 6
+ 489              		.cfi_restore 5
+ 490              		.cfi_restore 4
+ 491              		.cfi_def_cfa_offset 16
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s 			page 11
+
+
+ 492              	.LVL30:
+ 493              		.loc 1 50 3 view .LVU135
+ 494 021e 04B0     		add	sp, sp, #16
+ 495              	.LCFI11:
+ 496              		.cfi_def_cfa_offset 0
+ 497 0220 7047     		bx	lr
+ 498              		.cfi_endproc
+ 499              	.LFE275:
+ 501              		.text
+ 502              	.Letext0:
+ 503              		.file 2 "D:/Msys2/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 504              		.file 3 "D:/Msys2/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 505              		.file 4 "modules/algorithm/VMC.h"
+ 506              		.file 5 "modules/algorithm/LQR.h"
+ 507              		.file 6 "D:/Msys2/mingw64/arm-none-eabi/include/math.h"
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s 			page 12
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 LQR.c
+C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s:21     .text.LQR_Init:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s:27     .text.LQR_Init:00000000 LQR_Init
+C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s:133    .text.LQR_SetSpeed:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s:139    .text.LQR_SetSpeed:00000000 LQR_SetSpeed
+C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s:156    .text.LQR_Calc:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\cchJY3VH.s:162    .text.LQR_Calc:00000000 LQR_Calc
+
+UNDEFINED SYMBOLS
+powf

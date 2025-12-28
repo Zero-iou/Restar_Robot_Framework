@@ -1,0 +1,1444 @@
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 1
+
+
+   1              		.cpu cortex-m4
+   2              		.arch armv7e-m
+   3              		.fpu fpv4-sp-d16
+   4              		.eabi_attribute 27, 1
+   5              		.eabi_attribute 28, 1
+   6              		.eabi_attribute 20, 1
+   7              		.eabi_attribute 21, 1
+   8              		.eabi_attribute 23, 3
+   9              		.eabi_attribute 24, 1
+  10              		.eabi_attribute 25, 1
+  11              		.eabi_attribute 26, 1
+  12              		.eabi_attribute 30, 1
+  13              		.eabi_attribute 34, 1
+  14              		.eabi_attribute 18, 4
+  15              		.file	"VMC.c"
+  16              		.text
+  17              	.Ltext0:
+  18              		.cfi_sections	.debug_frame
+  19              		.file 1 "modules/algorithm/VMC.c"
+  20              		.section	.text.VMC_Init,"ax",%progbits
+  21              		.align	1
+  22              		.global	VMC_Init
+  23              		.syntax unified
+  24              		.thumb
+  25              		.thumb_func
+  27              	VMC_Init:
+  28              	.LVL0:
+  29              	.LFB273:
+   1:modules/algorithm/VMC.c **** #include "VMC.h"
+   2:modules/algorithm/VMC.c **** 
+   3:modules/algorithm/VMC.c **** static float lenth_1, lenth_2, lenth_3, lenth_4, lenth_5;
+   4:modules/algorithm/VMC.c **** static float control_dt;
+   5:modules/algorithm/VMC.c **** 
+   6:modules/algorithm/VMC.c **** void VMC_Init(VMC_t *vmc, float l1, float l2, float l5, float dt)
+   7:modules/algorithm/VMC.c **** {
+  30              		.loc 1 7 1 view -0
+  31              		.cfi_startproc
+  32              		@ args = 0, pretend = 0, frame = 0
+  33              		@ frame_needed = 0, uses_anonymous_args = 0
+  34              		@ link register save eliminated.
+   8:modules/algorithm/VMC.c **** 	control_dt = dt;
+  35              		.loc 1 8 2 view .LVU1
+  36              		.loc 1 8 13 is_stmt 0 view .LVU2
+  37 0000 0E4B     		ldr	r3, .L2
+  38 0002 C3ED001A 		vstr.32	s3, [r3]
+   9:modules/algorithm/VMC.c **** 
+  10:modules/algorithm/VMC.c **** 	lenth_1 = l1;
+  39              		.loc 1 10 2 is_stmt 1 view .LVU3
+  40              		.loc 1 10 10 is_stmt 0 view .LVU4
+  41 0006 0E4B     		ldr	r3, .L2+4
+  42 0008 83ED000A 		vstr.32	s0, [r3]
+  11:modules/algorithm/VMC.c **** 	lenth_2 = l2;
+  43              		.loc 1 11 2 is_stmt 1 view .LVU5
+  44              		.loc 1 11 10 is_stmt 0 view .LVU6
+  45 000c 0D4B     		ldr	r3, .L2+8
+  46 000e C3ED000A 		vstr.32	s1, [r3]
+  12:modules/algorithm/VMC.c **** 	lenth_3 = l2;
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 2
+
+
+  47              		.loc 1 12 2 is_stmt 1 view .LVU7
+  48              		.loc 1 12 10 is_stmt 0 view .LVU8
+  49 0012 0D4B     		ldr	r3, .L2+12
+  50 0014 C3ED000A 		vstr.32	s1, [r3]
+  13:modules/algorithm/VMC.c **** 	lenth_4 = l1;
+  51              		.loc 1 13 2 is_stmt 1 view .LVU9
+  52              		.loc 1 13 10 is_stmt 0 view .LVU10
+  53 0018 0C4B     		ldr	r3, .L2+16
+  54 001a 83ED000A 		vstr.32	s0, [r3]
+  14:modules/algorithm/VMC.c **** 	lenth_5 = l5;
+  55              		.loc 1 14 2 is_stmt 1 view .LVU11
+  56              		.loc 1 14 10 is_stmt 0 view .LVU12
+  57 001e 0C4B     		ldr	r3, .L2+20
+  58 0020 83ED001A 		vstr.32	s2, [r3]
+  15:modules/algorithm/VMC.c **** 
+  16:modules/algorithm/VMC.c **** 	// VMC腿长数据
+  17:modules/algorithm/VMC.c ****     vmc->l1 = l1;
+  59              		.loc 1 17 5 is_stmt 1 view .LVU13
+  60              		.loc 1 17 13 is_stmt 0 view .LVU14
+  61 0024 80ED050A 		vstr.32	s0, [r0, #20]
+  18:modules/algorithm/VMC.c ****     vmc->l2 = l2;
+  62              		.loc 1 18 5 is_stmt 1 view .LVU15
+  63              		.loc 1 18 13 is_stmt 0 view .LVU16
+  64 0028 C0ED060A 		vstr.32	s1, [r0, #24]
+  19:modules/algorithm/VMC.c ****     vmc->l3 = l2;
+  65              		.loc 1 19 5 is_stmt 1 view .LVU17
+  66              		.loc 1 19 13 is_stmt 0 view .LVU18
+  67 002c C0ED070A 		vstr.32	s1, [r0, #28]
+  20:modules/algorithm/VMC.c ****     vmc->l4 = l1;
+  68              		.loc 1 20 5 is_stmt 1 view .LVU19
+  69              		.loc 1 20 13 is_stmt 0 view .LVU20
+  70 0030 80ED080A 		vstr.32	s0, [r0, #32]
+  21:modules/algorithm/VMC.c ****     vmc->l5 = l5;
+  71              		.loc 1 21 5 is_stmt 1 view .LVU21
+  72              		.loc 1 21 13 is_stmt 0 view .LVU22
+  73 0034 80ED091A 		vstr.32	s2, [r0, #36]
+  22:modules/algorithm/VMC.c **** }
+  74              		.loc 1 22 1 view .LVU23
+  75 0038 7047     		bx	lr
+  76              	.L3:
+  77 003a 00BF     		.align	2
+  78              	.L2:
+  79 003c 00000000 		.word	control_dt
+  80 0040 00000000 		.word	lenth_1
+  81 0044 00000000 		.word	lenth_2
+  82 0048 00000000 		.word	lenth_3
+  83 004c 00000000 		.word	lenth_4
+  84 0050 00000000 		.word	lenth_5
+  85              		.cfi_endproc
+  86              	.LFE273:
+  88              		.global	__aeabi_f2d
+  89              		.global	__aeabi_dsub
+  90              		.global	__aeabi_d2f
+  91              		.global	__aeabi_ddiv
+  92              		.section	.text.VMC_Calc,"ax",%progbits
+  93              		.align	1
+  94              		.global	VMC_Calc
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 3
+
+
+  95              		.syntax unified
+  96              		.thumb
+  97              		.thumb_func
+  99              	VMC_Calc:
+ 100              	.LVL1:
+ 101              	.LFB274:
+  23:modules/algorithm/VMC.c **** 
+  24:modules/algorithm/VMC.c **** 
+  25:modules/algorithm/VMC.c **** void VMC_Calc(VMC_t *vmc, float phi_1, float phi_4, float dphi_1, float dphi_4, float phi_, float z
+  26:modules/algorithm/VMC.c **** {
+ 102              		.loc 1 26 1 is_stmt 1 view -0
+ 103              		.cfi_startproc
+ 104              		@ args = 0, pretend = 0, frame = 8
+ 105              		@ frame_needed = 0, uses_anonymous_args = 0
+ 106              		.loc 1 26 1 is_stmt 0 view .LVU25
+ 107 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 108              	.LCFI0:
+ 109              		.cfi_def_cfa_offset 36
+ 110              		.cfi_offset 4, -36
+ 111              		.cfi_offset 5, -32
+ 112              		.cfi_offset 6, -28
+ 113              		.cfi_offset 7, -24
+ 114              		.cfi_offset 8, -20
+ 115              		.cfi_offset 9, -16
+ 116              		.cfi_offset 10, -12
+ 117              		.cfi_offset 11, -8
+ 118              		.cfi_offset 14, -4
+ 119 0004 2DED108B 		vpush.64	{d8, d9, d10, d11, d12, d13, d14, d15}
+ 120              	.LCFI1:
+ 121              		.cfi_def_cfa_offset 100
+ 122              		.cfi_offset 80, -100
+ 123              		.cfi_offset 81, -96
+ 124              		.cfi_offset 82, -92
+ 125              		.cfi_offset 83, -88
+ 126              		.cfi_offset 84, -84
+ 127              		.cfi_offset 85, -80
+ 128              		.cfi_offset 86, -76
+ 129              		.cfi_offset 87, -72
+ 130              		.cfi_offset 88, -68
+ 131              		.cfi_offset 89, -64
+ 132              		.cfi_offset 90, -60
+ 133              		.cfi_offset 91, -56
+ 134              		.cfi_offset 92, -52
+ 135              		.cfi_offset 93, -48
+ 136              		.cfi_offset 94, -44
+ 137              		.cfi_offset 95, -40
+ 138 0008 83B0     		sub	sp, sp, #12
+ 139              	.LCFI2:
+ 140              		.cfi_def_cfa_offset 112
+ 141 000a 0446     		mov	r4, r0
+ 142 000c F0EE40BA 		vmov.f32	s23, s0
+ 143 0010 B0EE60BA 		vmov.f32	s22, s1
+ 144 0014 B0EE41DA 		vmov.f32	s26, s2
+ 145 0018 F0EE61DA 		vmov.f32	s27, s3
+ 146 001c 8DED002A 		vstr.32	s4, [sp]
+ 147 0020 F0EE628A 		vmov.f32	s17, s5
+  27:modules/algorithm/VMC.c ****     float xb_, xd_, yb_, yd_, xc_, yc_, lbd2_;
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 4
+
+
+ 148              		.loc 1 27 5 is_stmt 1 view .LVU26
+  28:modules/algorithm/VMC.c ****     float a0_, b0_, c0_;
+ 149              		.loc 1 28 5 view .LVU27
+  29:modules/algorithm/VMC.c **** 	float phi0_, phi2_, phi3_, theta_;
+ 150              		.loc 1 29 2 view .LVU28
+  30:modules/algorithm/VMC.c **** 	float cos_phi1, cos_phi4, sin_phi1, sin_phi4;
+ 151              		.loc 1 30 2 view .LVU29
+  31:modules/algorithm/VMC.c **** 	float lenth_0;
+ 152              		.loc 1 31 2 view .LVU30
+  32:modules/algorithm/VMC.c **** 
+  33:modules/algorithm/VMC.c **** 	float p_xb_,p_xd_, p_yb_, p_yd_, p_xc_, p_yc_, p_lbd2_;
+ 153              		.loc 1 33 2 view .LVU31
+  34:modules/algorithm/VMC.c **** 	float p_a0_, p_b0_, p_c0_;
+ 154              		.loc 1 34 2 view .LVU32
+  35:modules/algorithm/VMC.c **** 	float p_phi0_, p_phi2_, p_theta_;
+ 155              		.loc 1 35 2 view .LVU33
+  36:modules/algorithm/VMC.c **** 	float p_phi1_, p_phi4_;
+ 156              		.loc 1 36 2 view .LVU34
+  37:modules/algorithm/VMC.c **** 
+  38:modules/algorithm/VMC.c **** 	float dphi2_, dphi0_, dl0_, ddl0_, dtheta_, ddtheta_, ddzw_;
+ 157              		.loc 1 38 2 view .LVU35
+  39:modules/algorithm/VMC.c **** 	static float last_dl0_, last_dtheta_;
+ 158              		.loc 1 39 2 view .LVU36
+  40:modules/algorithm/VMC.c **** 	
+  41:modules/algorithm/VMC.c **** 	// 计算当前时刻参数
+  42:modules/algorithm/VMC.c ****     cos_phi1 = arm_cos_f32(phi_1);
+ 159              		.loc 1 42 5 view .LVU37
+ 160              		.loc 1 42 16 is_stmt 0 view .LVU38
+ 161 0024 FFF7FEFF 		bl	arm_cos_f32
+ 162              	.LVL2:
+ 163              		.loc 1 42 16 view .LVU39
+ 164 0028 B0EE409A 		vmov.f32	s18, s0
+ 165              	.LVL3:
+  43:modules/algorithm/VMC.c **** 	sin_phi1 = arm_sin_f32(phi_1);
+ 166              		.loc 1 43 2 is_stmt 1 view .LVU40
+ 167              		.loc 1 43 13 is_stmt 0 view .LVU41
+ 168 002c B0EE6B0A 		vmov.f32	s0, s23
+ 169              	.LVL4:
+ 170              		.loc 1 43 13 view .LVU42
+ 171 0030 FFF7FEFF 		bl	arm_sin_f32
+ 172              	.LVL5:
+ 173 0034 B0EE408A 		vmov.f32	s16, s0
+ 174              	.LVL6:
+  44:modules/algorithm/VMC.c **** 	cos_phi4 = arm_cos_f32(phi_4);
+ 175              		.loc 1 44 2 is_stmt 1 view .LVU43
+ 176              		.loc 1 44 13 is_stmt 0 view .LVU44
+ 177 0038 B0EE4B0A 		vmov.f32	s0, s22
+ 178              	.LVL7:
+ 179              		.loc 1 44 13 view .LVU45
+ 180 003c FFF7FEFF 		bl	arm_cos_f32
+ 181              	.LVL8:
+ 182 0040 F0EE409A 		vmov.f32	s19, s0
+ 183              	.LVL9:
+  45:modules/algorithm/VMC.c **** 	sin_phi4 = arm_sin_f32(phi_4);
+ 184              		.loc 1 45 2 is_stmt 1 view .LVU46
+ 185              		.loc 1 45 13 is_stmt 0 view .LVU47
+ 186 0044 B0EE4B0A 		vmov.f32	s0, s22
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 5
+
+
+ 187              	.LVL10:
+ 188              		.loc 1 45 13 view .LVU48
+ 189 0048 FFF7FEFF 		bl	arm_sin_f32
+ 190              	.LVL11:
+  46:modules/algorithm/VMC.c **** 
+  47:modules/algorithm/VMC.c ****     xb_ = lenth_1 * cos_phi1;
+ 191              		.loc 1 47 5 is_stmt 1 view .LVU49
+ 192              		.loc 1 47 19 is_stmt 0 view .LVU50
+ 193 004c DFF808A4 		ldr	r10, .L6+40
+ 194 0050 DAED00CA 		vldr.32	s25, [r10]
+ 195              		.loc 1 47 9 view .LVU51
+ 196 0054 2CEE899A 		vmul.f32	s18, s25, s18
+ 197              	.LVL12:
+  48:modules/algorithm/VMC.c ****  	xd_ = lenth_5 + lenth_4 * cos_phi4;
+ 198              		.loc 1 48 3 is_stmt 1 view .LVU52
+ 199              		.loc 1 48 27 is_stmt 0 view .LVU53
+ 200 0058 F74F     		ldr	r7, .L6+8
+ 201 005a 97ED00CA 		vldr.32	s24, [r7]
+ 202 005e 6CEE299A 		vmul.f32	s19, s24, s19
+ 203              	.LVL13:
+ 204              		.loc 1 48 17 view .LVU54
+ 205 0062 F64E     		ldr	r6, .L6+12
+ 206 0064 D6ED007A 		vldr.32	s15, [r6]
+ 207              		.loc 1 48 7 view .LVU55
+ 208 0068 79EEA79A 		vadd.f32	s19, s19, s15
+ 209              	.LVL14:
+  49:modules/algorithm/VMC.c **** 	yb_ = lenth_1 * sin_phi1;
+ 210              		.loc 1 49 2 is_stmt 1 view .LVU56
+ 211              		.loc 1 49 6 is_stmt 0 view .LVU57
+ 212 006c 6CEE88CA 		vmul.f32	s25, s25, s16
+ 213              	.LVL15:
+  50:modules/algorithm/VMC.c **** 	yd_ = lenth_4 * sin_phi4;
+ 214              		.loc 1 50 2 is_stmt 1 view .LVU58
+ 215              		.loc 1 50 6 is_stmt 0 view .LVU59
+ 216 0070 2CEE00CA 		vmul.f32	s24, s24, s0
+ 217              	.LVL16:
+  51:modules/algorithm/VMC.c **** 
+  52:modules/algorithm/VMC.c ****  	lbd2_ = powf(xd_ - xb_, 2) + powf(yd_ - yb_, 2);
+ 218              		.loc 1 52 3 is_stmt 1 view .LVU60
+ 219              		.loc 1 52 11 is_stmt 0 view .LVU61
+ 220 0074 39EEC9EA 		vsub.f32	s28, s19, s18
+ 221 0078 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 222 007c B0EE4E0A 		vmov.f32	s0, s28
+ 223              	.LVL17:
+ 224              		.loc 1 52 11 view .LVU62
+ 225 0080 FFF7FEFF 		bl	powf
+ 226              	.LVL18:
+ 227 0084 F0EE40AA 		vmov.f32	s21, s0
+ 228              		.loc 1 52 32 discriminator 1 view .LVU63
+ 229 0088 3CEE6C8A 		vsub.f32	s16, s24, s25
+ 230              	.LVL19:
+ 231              		.loc 1 52 32 discriminator 1 view .LVU64
+ 232 008c F0EE000A 		vmov.f32	s1, #2.0e+0
+ 233 0090 B0EE480A 		vmov.f32	s0, s16
+ 234 0094 FFF7FEFF 		bl	powf
+ 235              	.LVL20:
+ 236              		.loc 1 52 9 discriminator 2 view .LVU65
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 6
+
+
+ 237 0098 7AEE80AA 		vadd.f32	s21, s21, s0
+ 238              	.LVL21:
+  53:modules/algorithm/VMC.c **** 
+  54:modules/algorithm/VMC.c **** 	a0_ = 2.0f * lenth_2 * (xd_ - xb_);
+ 239              		.loc 1 54 2 is_stmt 1 view .LVU66
+ 240              		.loc 1 54 13 is_stmt 0 view .LVU67
+ 241 009c E84D     		ldr	r5, .L6+16
+ 242 009e 95ED000A 		vldr.32	s0, [r5]
+ 243 00a2 70EE007A 		vadd.f32	s15, s0, s0
+ 244              		.loc 1 54 6 view .LVU68
+ 245 00a6 2EEE27EA 		vmul.f32	s28, s28, s15
+ 246              	.LVL22:
+  55:modules/algorithm/VMC.c **** 	b0_ = 2.0f * lenth_2 * (yd_ - yb_);
+ 247              		.loc 1 55 2 is_stmt 1 view .LVU69
+ 248              		.loc 1 55 6 is_stmt 0 view .LVU70
+ 249 00aa 28EE278A 		vmul.f32	s16, s16, s15
+ 250              	.LVL23:
+  56:modules/algorithm/VMC.c **** 	c0_ = powf(lenth_2, 2) + lbd2_ - powf(lenth_3, 2);
+ 251              		.loc 1 56 2 is_stmt 1 view .LVU71
+ 252              		.loc 1 56 8 is_stmt 0 view .LVU72
+ 253 00ae F0EE000A 		vmov.f32	s1, #2.0e+0
+ 254 00b2 FFF7FEFF 		bl	powf
+ 255              	.LVL24:
+ 256              		.loc 1 56 35 discriminator 1 view .LVU73
+ 257 00b6 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 258 00ba E24B     		ldr	r3, .L6+20
+ 259 00bc 93ED000A 		vldr.32	s0, [r3]
+ 260 00c0 FFF7FEFF 		bl	powf
+ 261              	.LVL25:
+  57:modules/algorithm/VMC.c **** 
+  58:modules/algorithm/VMC.c **** 
+  59:modules/algorithm/VMC.c **** 	phi2_ = 2.0f * atan2f((b0_ + sqrtf(powf(a0_, 2) + powf(b0_, 2) - powf(lbd2_, 2))), a0_ + lbd2_);
+ 262              		.loc 1 59 2 is_stmt 1 view .LVU74
+ 263              		.loc 1 59 37 is_stmt 0 view .LVU75
+ 264 00c4 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 265 00c8 B0EE4E0A 		vmov.f32	s0, s28
+ 266 00cc FFF7FEFF 		bl	powf
+ 267              	.LVL26:
+ 268 00d0 B0EE40AA 		vmov.f32	s20, s0
+ 269              		.loc 1 59 52 discriminator 1 view .LVU76
+ 270 00d4 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 271 00d8 B0EE480A 		vmov.f32	s0, s16
+ 272 00dc FFF7FEFF 		bl	powf
+ 273              	.LVL27:
+ 274              		.loc 1 59 50 discriminator 2 view .LVU77
+ 275 00e0 3AEE00AA 		vadd.f32	s20, s20, s0
+ 276              		.loc 1 59 67 discriminator 2 view .LVU78
+ 277 00e4 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 278 00e8 B0EE6A0A 		vmov.f32	s0, s21
+ 279 00ec FFF7FEFF 		bl	powf
+ 280              	.LVL28:
+ 281              		.loc 1 59 31 discriminator 3 view .LVU79
+ 282 00f0 3AEE400A 		vsub.f32	s0, s20, s0
+ 283 00f4 FFF7FEFF 		bl	sqrtf
+ 284              	.LVL29:
+ 285              		.loc 1 59 17 discriminator 4 view .LVU80
+ 286 00f8 7AEE8E0A 		vadd.f32	s1, s21, s28
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 7
+
+
+ 287 00fc 30EE080A 		vadd.f32	s0, s0, s16
+ 288 0100 FFF7FEFF 		bl	atan2f
+ 289              	.LVL30:
+ 290              		.loc 1 59 8 discriminator 5 view .LVU81
+ 291 0104 30EE00AA 		vadd.f32	s20, s0, s0
+ 292              	.LVL31:
+  60:modules/algorithm/VMC.c **** 	xc_ = xb_ + lenth_2 * arm_cos_f32(phi2_);
+ 293              		.loc 1 60 2 is_stmt 1 view .LVU82
+ 294              		.loc 1 60 24 is_stmt 0 view .LVU83
+ 295 0108 B0EE4A0A 		vmov.f32	s0, s20
+ 296 010c FFF7FEFF 		bl	arm_cos_f32
+ 297              	.LVL32:
+ 298              		.loc 1 60 22 discriminator 1 view .LVU84
+ 299 0110 D5ED007A 		vldr.32	s15, [r5]
+ 300 0114 20EE278A 		vmul.f32	s16, s0, s15
+ 301              	.LVL33:
+ 302              		.loc 1 60 6 discriminator 1 view .LVU85
+ 303 0118 38EE098A 		vadd.f32	s16, s16, s18
+ 304              	.LVL34:
+  61:modules/algorithm/VMC.c **** 	yc_ = yb_ + lenth_2 * arm_sin_f32(phi2_);
+ 305              		.loc 1 61 2 is_stmt 1 view .LVU86
+ 306              		.loc 1 61 24 is_stmt 0 view .LVU87
+ 307 011c B0EE4A0A 		vmov.f32	s0, s20
+ 308 0120 FFF7FEFF 		bl	arm_sin_f32
+ 309              	.LVL35:
+ 310              		.loc 1 61 22 discriminator 1 view .LVU88
+ 311 0124 D5ED007A 		vldr.32	s15, [r5]
+ 312 0128 20EE279A 		vmul.f32	s18, s0, s15
+ 313              	.LVL36:
+ 314              		.loc 1 61 6 discriminator 1 view .LVU89
+ 315 012c 39EE2C9A 		vadd.f32	s18, s18, s25
+ 316              	.LVL37:
+  62:modules/algorithm/VMC.c **** 
+  63:modules/algorithm/VMC.c **** 	phi3_ = atan2f(yc_ - yd_, xc_ - xd_);
+ 317              		.loc 1 63 2 is_stmt 1 view .LVU90
+ 318              		.loc 1 63 10 is_stmt 0 view .LVU91
+ 319 0130 78EE690A 		vsub.f32	s1, s16, s19
+ 320 0134 39EE4C0A 		vsub.f32	s0, s18, s24
+ 321 0138 FFF7FEFF 		bl	atan2f
+ 322              	.LVL38:
+ 323 013c F0EE40CA 		vmov.f32	s25, s0
+ 324              	.LVL39:
+  64:modules/algorithm/VMC.c **** 
+  65:modules/algorithm/VMC.c **** 	phi0_ = atan2f(yc_, (xc_ - lenth_5 / 2.0f));
+ 325              		.loc 1 65 2 is_stmt 1 view .LVU92
+ 326              		.loc 1 65 37 is_stmt 0 view .LVU93
+ 327 0140 D6ED007A 		vldr.32	s15, [r6]
+ 328 0144 B6EE00FA 		vmov.f32	s30, #5.0e-1
+ 329 0148 67EE8F7A 		vmul.f32	s15, s15, s30
+ 330              		.loc 1 65 10 view .LVU94
+ 331 014c 38EE678A 		vsub.f32	s16, s16, s15
+ 332              	.LVL40:
+ 333              		.loc 1 65 10 view .LVU95
+ 334 0150 F0EE480A 		vmov.f32	s1, s16
+ 335 0154 B0EE490A 		vmov.f32	s0, s18
+ 336              	.LVL41:
+ 337              		.loc 1 65 10 view .LVU96
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 8
+
+
+ 338 0158 FFF7FEFF 		bl	atan2f
+ 339              	.LVL42:
+ 340 015c 10EE10BA 		vmov	fp, s0
+ 341              	.LVL43:
+  66:modules/algorithm/VMC.c **** 	// 机体角度
+  67:modules/algorithm/VMC.c **** 	theta_ = phi0_ - 0.5 * PI - phi_;
+ 342              		.loc 1 67 2 is_stmt 1 view .LVU97
+ 343              		.loc 1 67 17 is_stmt 0 view .LVU98
+ 344 0160 5846     		mov	r0, fp	@ float
+ 345 0162 FFF7FEFF 		bl	__aeabi_f2d
+ 346              	.LVL44:
+ 347 0166 B2A3     		adr	r3, .L6
+ 348 0168 D3E90023 		ldrd	r2, [r3]
+ 349 016c FFF7FEFF 		bl	__aeabi_dsub
+ 350              	.LVL45:
+ 351 0170 8046     		mov	r8, r0
+ 352 0172 8946     		mov	r9, r1
+ 353              		.loc 1 67 28 view .LVU99
+ 354 0174 0098     		ldr	r0, [sp]	@ float
+ 355 0176 FFF7FEFF 		bl	__aeabi_f2d
+ 356              	.LVL46:
+ 357 017a CDE90001 		strd	r0, [sp]
+ 358              	.LVL47:
+ 359              		.loc 1 67 28 view .LVU100
+ 360 017e 0246     		mov	r2, r0
+ 361 0180 0B46     		mov	r3, r1
+ 362 0182 4046     		mov	r0, r8
+ 363 0184 4946     		mov	r1, r9
+ 364 0186 FFF7FEFF 		bl	__aeabi_dsub
+ 365              	.LVL48:
+ 366              		.loc 1 67 9 view .LVU101
+ 367 018a FFF7FEFF 		bl	__aeabi_d2f
+ 368              	.LVL49:
+ 369 018e 09EE900A 		vmov	s19, r0
+ 370              	.LVL50:
+  68:modules/algorithm/VMC.c **** 
+  69:modules/algorithm/VMC.c **** 	// 腿长
+  70:modules/algorithm/VMC.c **** 	lenth_0 = sqrtf(powf(xc_ - lenth_5 / 2.0f, 2) + powf(yc_, 2));
+ 371              		.loc 1 70 2 is_stmt 1 view .LVU102
+ 372              		.loc 1 70 18 is_stmt 0 view .LVU103
+ 373 0192 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 374 0196 B0EE480A 		vmov.f32	s0, s16
+ 375 019a FFF7FEFF 		bl	powf
+ 376              	.LVL51:
+ 377              		.loc 1 70 18 view .LVU104
+ 378 019e B0EE408A 		vmov.f32	s16, s0
+ 379              		.loc 1 70 50 discriminator 1 view .LVU105
+ 380 01a2 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 381 01a6 B0EE490A 		vmov.f32	s0, s18
+ 382 01aa FFF7FEFF 		bl	powf
+ 383              	.LVL52:
+ 384              		.loc 1 70 12 discriminator 2 view .LVU106
+ 385 01ae 38EE000A 		vadd.f32	s0, s16, s0
+ 386 01b2 FFF7FEFF 		bl	sqrtf
+ 387              	.LVL53:
+ 388 01b6 F0EE40AA 		vmov.f32	s21, s0
+ 389              	.LVL54:
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 9
+
+
+  71:modules/algorithm/VMC.c **** 
+  72:modules/algorithm/VMC.c **** 	// 预测下一时刻参数
+  73:modules/algorithm/VMC.c **** 	p_phi1_ = phi_1 + dphi_1 * control_dt;  
+ 390              		.loc 1 73 2 is_stmt 1 view .LVU107
+ 391              		.loc 1 73 27 is_stmt 0 view .LVU108
+ 392 01ba DFF8A082 		ldr	r8, .L6+44
+ 393 01be 98ED009A 		vldr.32	s18, [r8]
+ 394              	.LVL55:
+ 395              		.loc 1 73 27 view .LVU109
+ 396 01c2 29EE0DDA 		vmul.f32	s26, s18, s26
+ 397              	.LVL56:
+ 398              		.loc 1 73 10 view .LVU110
+ 399 01c6 3DEE2BDA 		vadd.f32	s26, s26, s23
+ 400              	.LVL57:
+  74:modules/algorithm/VMC.c **** 	p_phi4_ = phi_4 + dphi_4 * control_dt;
+ 401              		.loc 1 74 2 is_stmt 1 view .LVU111
+ 402              		.loc 1 74 27 is_stmt 0 view .LVU112
+ 403 01ca 29EE2D9A 		vmul.f32	s18, s18, s27
+ 404              		.loc 1 74 10 view .LVU113
+ 405 01ce 39EE0B9A 		vadd.f32	s18, s18, s22
+ 406              	.LVL58:
+  75:modules/algorithm/VMC.c **** 
+  76:modules/algorithm/VMC.c **** 	p_xb_ = lenth_1 * arm_cos_f32(p_phi1_);
+ 407              		.loc 1 76 2 is_stmt 1 view .LVU114
+ 408              		.loc 1 76 20 is_stmt 0 view .LVU115
+ 409 01d2 B0EE4D0A 		vmov.f32	s0, s26
+ 410              	.LVL59:
+ 411              		.loc 1 76 20 view .LVU116
+ 412 01d6 FFF7FEFF 		bl	arm_cos_f32
+ 413              	.LVL60:
+ 414              		.loc 1 76 18 discriminator 1 view .LVU117
+ 415 01da DAED007A 		vldr.32	s15, [r10]
+ 416              		.loc 1 76 8 discriminator 1 view .LVU118
+ 417 01de 60EE27EA 		vmul.f32	s29, s0, s15
+ 418              	.LVL61:
+  77:modules/algorithm/VMC.c **** 	p_xd_ = lenth_5 + lenth_4 * arm_cos_f32(p_phi4_);
+ 419              		.loc 1 77 2 is_stmt 1 view .LVU119
+ 420              		.loc 1 77 30 is_stmt 0 view .LVU120
+ 421 01e2 B0EE490A 		vmov.f32	s0, s18
+ 422 01e6 FFF7FEFF 		bl	arm_cos_f32
+ 423              	.LVL62:
+ 424              		.loc 1 77 28 discriminator 1 view .LVU121
+ 425 01ea D7ED007A 		vldr.32	s15, [r7]
+ 426 01ee 20EE278A 		vmul.f32	s16, s0, s15
+ 427              		.loc 1 77 18 discriminator 1 view .LVU122
+ 428 01f2 D6ED007A 		vldr.32	s15, [r6]
+ 429              		.loc 1 77 8 discriminator 1 view .LVU123
+ 430 01f6 38EE278A 		vadd.f32	s16, s16, s15
+ 431              	.LVL63:
+  78:modules/algorithm/VMC.c **** 	p_yb_ = lenth_1 * arm_sin_f32(p_phi1_);
+ 432              		.loc 1 78 2 is_stmt 1 view .LVU124
+ 433              		.loc 1 78 20 is_stmt 0 view .LVU125
+ 434 01fa B0EE4D0A 		vmov.f32	s0, s26
+ 435 01fe FFF7FEFF 		bl	arm_sin_f32
+ 436              	.LVL64:
+ 437              		.loc 1 78 18 discriminator 1 view .LVU126
+ 438 0202 DAED007A 		vldr.32	s15, [r10]
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 10
+
+
+ 439              		.loc 1 78 8 discriminator 1 view .LVU127
+ 440 0206 20EE27EA 		vmul.f32	s28, s0, s15
+ 441              	.LVL65:
+  79:modules/algorithm/VMC.c **** 	p_yd_ = lenth_4 * arm_sin_f32(p_phi4_);
+ 442              		.loc 1 79 2 is_stmt 1 view .LVU128
+ 443              		.loc 1 79 20 is_stmt 0 view .LVU129
+ 444 020a B0EE490A 		vmov.f32	s0, s18
+ 445 020e FFF7FEFF 		bl	arm_sin_f32
+ 446              	.LVL66:
+ 447              		.loc 1 79 18 discriminator 1 view .LVU130
+ 448 0212 D7ED007A 		vldr.32	s15, [r7]
+ 449              		.loc 1 79 8 discriminator 1 view .LVU131
+ 450 0216 20EE279A 		vmul.f32	s18, s0, s15
+ 451              	.LVL67:
+  80:modules/algorithm/VMC.c **** 	p_lbd2_ = powf(p_xd_ - p_xb_, 2) + powf(p_yd_ - p_yb_, 2);
+ 452              		.loc 1 80 2 is_stmt 1 view .LVU132
+ 453              		.loc 1 80 12 is_stmt 0 view .LVU133
+ 454 021a 38EE6E8A 		vsub.f32	s16, s16, s29
+ 455              	.LVL68:
+ 456              		.loc 1 80 12 view .LVU134
+ 457 021e F0EE000A 		vmov.f32	s1, #2.0e+0
+ 458 0222 B0EE480A 		vmov.f32	s0, s16
+ 459 0226 FFF7FEFF 		bl	powf
+ 460              	.LVL69:
+ 461 022a B0EE40DA 		vmov.f32	s26, s0
+ 462              	.LVL70:
+ 463              		.loc 1 80 37 discriminator 1 view .LVU135
+ 464 022e 39EE4E9A 		vsub.f32	s18, s18, s28
+ 465              	.LVL71:
+ 466              		.loc 1 80 37 discriminator 1 view .LVU136
+ 467 0232 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 468 0236 B0EE490A 		vmov.f32	s0, s18
+ 469 023a FFF7FEFF 		bl	powf
+ 470              	.LVL72:
+ 471              		.loc 1 80 10 discriminator 2 view .LVU137
+ 472 023e 3DEE00DA 		vadd.f32	s26, s26, s0
+ 473              	.LVL73:
+  81:modules/algorithm/VMC.c ****   	
+  82:modules/algorithm/VMC.c **** 	p_a0_ = 2 * lenth_2 * (p_xd_ - p_xb_);
+ 474              		.loc 1 82 2 is_stmt 1 view .LVU138
+ 475              		.loc 1 82 12 is_stmt 0 view .LVU139
+ 476 0242 D5ED007A 		vldr.32	s15, [r5]
+ 477 0246 77EEA77A 		vadd.f32	s15, s15, s15
+ 478              		.loc 1 82 8 view .LVU140
+ 479 024a 28EE278A 		vmul.f32	s16, s16, s15
+ 480              	.LVL74:
+  83:modules/algorithm/VMC.c ****   	p_b0_ = 2 * lenth_2 * (p_yd_ - p_yb_);
+ 481              		.loc 1 83 4 is_stmt 1 view .LVU141
+ 482              		.loc 1 83 10 is_stmt 0 view .LVU142
+ 483 024e 29EE279A 		vmul.f32	s18, s18, s15
+ 484              	.LVL75:
+  84:modules/algorithm/VMC.c ****  
+  85:modules/algorithm/VMC.c **** 	p_phi2_ = 2 * atan2f(p_b0_ + sqrtf(powf(p_a0_, 2) + powf(p_b0_, 2) - powf(p_lbd2_, 2)), p_a0_ + p_
+ 485              		.loc 1 85 2 is_stmt 1 view .LVU143
+ 486              		.loc 1 85 37 is_stmt 0 view .LVU144
+ 487 0252 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 488 0256 B0EE480A 		vmov.f32	s0, s16
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 11
+
+
+ 489 025a FFF7FEFF 		bl	powf
+ 490              	.LVL76:
+ 491 025e F0EE40DA 		vmov.f32	s27, s0
+ 492              	.LVL77:
+ 493              		.loc 1 85 54 discriminator 1 view .LVU145
+ 494 0262 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 495 0266 B0EE490A 		vmov.f32	s0, s18
+ 496 026a FFF7FEFF 		bl	powf
+ 497              	.LVL78:
+ 498              		.loc 1 85 52 discriminator 2 view .LVU146
+ 499 026e 7DEE80DA 		vadd.f32	s27, s27, s0
+ 500              		.loc 1 85 71 discriminator 2 view .LVU147
+ 501 0272 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 502 0276 B0EE4D0A 		vmov.f32	s0, s26
+ 503 027a FFF7FEFF 		bl	powf
+ 504              	.LVL79:
+ 505              		.loc 1 85 31 discriminator 3 view .LVU148
+ 506 027e 3DEEC00A 		vsub.f32	s0, s27, s0
+ 507 0282 FFF7FEFF 		bl	sqrtf
+ 508              	.LVL80:
+ 509              		.loc 1 85 16 discriminator 4 view .LVU149
+ 510 0286 7DEE080A 		vadd.f32	s1, s26, s16
+ 511 028a 30EE090A 		vadd.f32	s0, s0, s18
+ 512 028e FFF7FEFF 		bl	atan2f
+ 513              	.LVL81:
+ 514              		.loc 1 85 10 discriminator 5 view .LVU150
+ 515 0292 30EE009A 		vadd.f32	s18, s0, s0
+ 516              	.LVL82:
+  86:modules/algorithm/VMC.c **** 	p_xc_ = p_xb_ + lenth_2 * arm_cos_f32(p_phi2_);
+ 517              		.loc 1 86 2 is_stmt 1 view .LVU151
+ 518              		.loc 1 86 28 is_stmt 0 view .LVU152
+ 519 0296 B0EE490A 		vmov.f32	s0, s18
+ 520 029a FFF7FEFF 		bl	arm_cos_f32
+ 521              	.LVL83:
+ 522              		.loc 1 86 26 discriminator 1 view .LVU153
+ 523 029e D5ED007A 		vldr.32	s15, [r5]
+ 524 02a2 20EE278A 		vmul.f32	s16, s0, s15
+ 525              	.LVL84:
+ 526              		.loc 1 86 8 discriminator 1 view .LVU154
+ 527 02a6 38EE2E8A 		vadd.f32	s16, s16, s29
+ 528              	.LVL85:
+  87:modules/algorithm/VMC.c ****   	p_yc_ = p_yb_ + lenth_2 * arm_sin_f32(p_phi2_);
+ 529              		.loc 1 87 4 is_stmt 1 view .LVU155
+ 530              		.loc 1 87 30 is_stmt 0 view .LVU156
+ 531 02aa B0EE490A 		vmov.f32	s0, s18
+ 532 02ae FFF7FEFF 		bl	arm_sin_f32
+ 533              	.LVL86:
+ 534              		.loc 1 87 28 discriminator 1 view .LVU157
+ 535 02b2 D5ED007A 		vldr.32	s15, [r5]
+ 536 02b6 20EE27DA 		vmul.f32	s26, s0, s15
+ 537              	.LVL87:
+ 538              		.loc 1 87 10 discriminator 1 view .LVU158
+ 539 02ba 3DEE0EDA 		vadd.f32	s26, s26, s28
+ 540              	.LVL88:
+  88:modules/algorithm/VMC.c **** 	
+  89:modules/algorithm/VMC.c **** 	p_phi0_ = atan2f(p_yc_, p_xc_ - lenth_5 / 2);
+ 541              		.loc 1 89 2 is_stmt 1 view .LVU159
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 12
+
+
+ 542              		.loc 1 89 42 is_stmt 0 view .LVU160
+ 543 02be D6ED007A 		vldr.32	s15, [r6]
+ 544 02c2 67EE8F7A 		vmul.f32	s15, s15, s30
+ 545              		.loc 1 89 12 view .LVU161
+ 546 02c6 38EE678A 		vsub.f32	s16, s16, s15
+ 547              	.LVL89:
+ 548              		.loc 1 89 12 view .LVU162
+ 549 02ca F0EE480A 		vmov.f32	s1, s16
+ 550 02ce B0EE4D0A 		vmov.f32	s0, s26
+ 551 02d2 FFF7FEFF 		bl	atan2f
+ 552              	.LVL90:
+ 553 02d6 10EE100A 		vmov	r0, s0
+ 554              	.LVL91:
+  90:modules/algorithm/VMC.c ****   	
+  91:modules/algorithm/VMC.c **** 	// 计算腿长变化率和腿角速度
+  92:modules/algorithm/VMC.c ****  	dphi2_ = (p_phi2_ - phi2_) / control_dt;
+ 555              		.loc 1 92 3 is_stmt 1 view .LVU163
+ 556              		.loc 1 92 21 is_stmt 0 view .LVU164
+ 557 02da 79EE4A7A 		vsub.f32	s15, s18, s20
+ 558              		.loc 1 92 30 view .LVU165
+ 559 02de 98ED00EA 		vldr.32	s28, [r8]
+ 560              	.LVL92:
+ 561              		.loc 1 92 10 view .LVU166
+ 562 02e2 C7EE8EDA 		vdiv.f32	s27, s15, s28
+ 563              	.LVL93:
+  93:modules/algorithm/VMC.c ****   	dphi0_ = (p_phi0_ - phi0_) / control_dt;
+ 564              		.loc 1 93 4 is_stmt 1 view .LVU167
+  94:modules/algorithm/VMC.c **** 	dtheta_ = (p_phi0_ - 0.5 * PI - phi_ - theta_) / control_dt;
+ 565              		.loc 1 94 2 view .LVU168
+ 566              		.loc 1 94 21 is_stmt 0 view .LVU169
+ 567 02e6 FFF7FEFF 		bl	__aeabi_f2d
+ 568              	.LVL94:
+ 569              		.loc 1 94 21 view .LVU170
+ 570 02ea 51A3     		adr	r3, .L6
+ 571 02ec D3E90023 		ldrd	r2, [r3]
+ 572 02f0 FFF7FEFF 		bl	__aeabi_dsub
+ 573              	.LVL95:
+ 574              		.loc 1 94 32 view .LVU171
+ 575 02f4 DDE90023 		ldrd	r2, [sp]
+ 576 02f8 FFF7FEFF 		bl	__aeabi_dsub
+ 577              	.LVL96:
+ 578 02fc 0646     		mov	r6, r0
+ 579 02fe 0F46     		mov	r7, r1
+ 580              		.loc 1 94 39 view .LVU172
+ 581 0300 19EE900A 		vmov	r0, s19
+ 582 0304 FFF7FEFF 		bl	__aeabi_f2d
+ 583              	.LVL97:
+ 584 0308 0246     		mov	r2, r0
+ 585 030a 0B46     		mov	r3, r1
+ 586 030c 3046     		mov	r0, r6
+ 587 030e 3946     		mov	r1, r7
+ 588 0310 FFF7FEFF 		bl	__aeabi_dsub
+ 589              	.LVL98:
+ 590 0314 8046     		mov	r8, r0
+ 591 0316 8946     		mov	r9, r1
+ 592              		.loc 1 94 49 view .LVU173
+ 593 0318 1EEE100A 		vmov	r0, s28
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 13
+
+
+ 594 031c FFF7FEFF 		bl	__aeabi_f2d
+ 595              	.LVL99:
+ 596 0320 0246     		mov	r2, r0
+ 597 0322 0B46     		mov	r3, r1
+ 598 0324 4046     		mov	r0, r8
+ 599 0326 4946     		mov	r1, r9
+ 600 0328 FFF7FEFF 		bl	__aeabi_ddiv
+ 601              	.LVL100:
+ 602              		.loc 1 94 10 view .LVU174
+ 603 032c FFF7FEFF 		bl	__aeabi_d2f
+ 604              	.LVL101:
+ 605 0330 09EE100A 		vmov	s18, r0
+ 606              	.LVL102:
+  95:modules/algorithm/VMC.c **** 	dl0_ = ((sqrtf(powf(p_xc_ - lenth_5 / 2, 2) + powf(p_yc_, 2))) - lenth_0) / control_dt;
+ 607              		.loc 1 95 2 is_stmt 1 view .LVU175
+ 608              		.loc 1 95 17 is_stmt 0 view .LVU176
+ 609 0334 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 610 0338 B0EE480A 		vmov.f32	s0, s16
+ 611 033c FFF7FEFF 		bl	powf
+ 612              	.LVL103:
+ 613              		.loc 1 95 17 view .LVU177
+ 614 0340 B0EE408A 		vmov.f32	s16, s0
+ 615              		.loc 1 95 48 discriminator 1 view .LVU178
+ 616 0344 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 617 0348 B0EE4D0A 		vmov.f32	s0, s26
+ 618 034c FFF7FEFF 		bl	powf
+ 619              	.LVL104:
+ 620              		.loc 1 95 11 discriminator 2 view .LVU179
+ 621 0350 38EE000A 		vadd.f32	s0, s16, s0
+ 622 0354 FFF7FEFF 		bl	sqrtf
+ 623              	.LVL105:
+ 624              		.loc 1 95 65 discriminator 3 view .LVU180
+ 625 0358 30EE6A0A 		vsub.f32	s0, s0, s21
+ 626              		.loc 1 95 7 discriminator 3 view .LVU181
+ 627 035c 80EE0EDA 		vdiv.f32	s26, s0, s28
+ 628              	.LVL106:
+  96:modules/algorithm/VMC.c **** 	ddl0_ = (dl0_ - last_dl0_) / (0.002f + 0.008f) + ddl0_ * 0.008f / (0.002f + 0.008f);
+ 629              		.loc 1 96 2 is_stmt 1 view .LVU182
+ 630              		.loc 1 96 16 is_stmt 0 view .LVU183
+ 631 0360 394D     		ldr	r5, .L6+24
+ 632 0362 95ED007A 		vldr.32	s14, [r5]
+ 633 0366 3DEE477A 		vsub.f32	s14, s26, s14
+ 634              		.loc 1 96 29 view .LVU184
+ 635 036a DFED387A 		vldr.32	s15, .L6+28
+ 636 036e 87EE278A 		vdiv.f32	s16, s14, s15
+ 637              		.loc 1 96 57 view .LVU185
+ 638 0372 DFED376A 		vldr.32	s13, .L6+32
+ 639 0376 9FED377A 		vldr.32	s14, .L6+36
+ 640 037a 27EE267A 		vmul.f32	s14, s14, s13
+ 641              		.loc 1 96 66 view .LVU186
+ 642 037e 87EE276A 		vdiv.f32	s12, s14, s15
+ 643              		.loc 1 96 8 view .LVU187
+ 644 0382 38EE068A 		vadd.f32	s16, s16, s12
+ 645              	.LVL107:
+  97:modules/algorithm/VMC.c **** 	ddtheta_ = (dtheta_ - last_dtheta_) / (0.002f + 0.008f) + ddtheta_ * 0.008f / (0.002f + 0.008f);
+ 646              		.loc 1 97 2 is_stmt 1 view .LVU188
+ 647              		.loc 1 97 22 is_stmt 0 view .LVU189
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 14
+
+
+ 648 0386 DFF8D880 		ldr	r8, .L6+48
+ 649 038a 98ED007A 		vldr.32	s14, [r8]
+ 650 038e 39EE477A 		vsub.f32	s14, s18, s14
+ 651              		.loc 1 97 38 view .LVU190
+ 652 0392 87EE27EA 		vdiv.f32	s28, s14, s15
+ 653              		.loc 1 97 11 view .LVU191
+ 654 0396 3EEE06EA 		vadd.f32	s28, s28, s12
+ 655              	.LVL108:
+  98:modules/algorithm/VMC.c **** 	ddzw_ = z_accel - ddl0_ * arm_cos_f32(theta_) + 
+ 656              		.loc 1 98 2 is_stmt 1 view .LVU192
+ 657              		.loc 1 98 28 is_stmt 0 view .LVU193
+ 658 039a B0EE690A 		vmov.f32	s0, s19
+ 659 039e FFF7FEFF 		bl	arm_cos_f32
+ 660              	.LVL109:
+ 661              		.loc 1 98 26 discriminator 1 view .LVU194
+ 662 03a2 20EE080A 		vmul.f32	s0, s0, s16
+ 663              		.loc 1 98 18 discriminator 1 view .LVU195
+ 664 03a6 38EEC08A 		vsub.f32	s16, s17, s0
+ 665              	.LVL110:
+  99:modules/algorithm/VMC.c **** 			2.0f * dl0_ * dtheta_ * arm_sin_f32(theta_) +
+ 666              		.loc 1 99 9 view .LVU196
+ 667 03aa 7DEE0D8A 		vadd.f32	s17, s26, s26
+ 668              	.LVL111:
+ 669              		.loc 1 99 16 view .LVU197
+ 670 03ae 68EE898A 		vmul.f32	s17, s17, s18
+ 671              		.loc 1 99 28 view .LVU198
+ 672 03b2 B0EE690A 		vmov.f32	s0, s19
+ 673 03b6 FFF7FEFF 		bl	arm_sin_f32
+ 674              	.LVL112:
+ 675              		.loc 1 99 26 discriminator 1 view .LVU199
+ 676 03ba 68EE808A 		vmul.f32	s17, s17, s0
+  98:modules/algorithm/VMC.c **** 	ddzw_ = z_accel - ddl0_ * arm_cos_f32(theta_) + 
+ 677              		.loc 1 98 48 view .LVU200
+ 678 03be 38EE288A 		vadd.f32	s16, s16, s17
+ 100:modules/algorithm/VMC.c **** 			lenth_0 * ddtheta_ * arm_cos_f32(theta_) +
+ 679              		.loc 1 100 12 view .LVU201
+ 680 03c2 6AEE8E8A 		vmul.f32	s17, s21, s28
+ 681              		.loc 1 100 25 view .LVU202
+ 682 03c6 B0EE690A 		vmov.f32	s0, s19
+ 683 03ca FFF7FEFF 		bl	arm_cos_f32
+ 684              	.LVL113:
+ 685              		.loc 1 100 23 discriminator 1 view .LVU203
+ 686 03ce 68EE808A 		vmul.f32	s17, s17, s0
+  99:modules/algorithm/VMC.c **** 			2.0f * dl0_ * dtheta_ * arm_sin_f32(theta_) +
+ 687              		.loc 1 99 48 view .LVU204
+ 688 03d2 38EE288A 		vadd.f32	s16, s16, s17
+ 101:modules/algorithm/VMC.c **** 			lenth_0 * powf(dtheta_, 2) * arm_sin_f32(theta_);
+ 689              		.loc 1 101 14 view .LVU205
+ 690 03d6 F0EE000A 		vmov.f32	s1, #2.0e+0
+ 691 03da B0EE490A 		vmov.f32	s0, s18
+ 692 03de FFF7FEFF 		bl	powf
+ 693              	.LVL114:
+ 694              		.loc 1 101 12 discriminator 1 view .LVU206
+ 695 03e2 60EE2A8A 		vmul.f32	s17, s0, s21
+ 696              		.loc 1 101 33 discriminator 1 view .LVU207
+ 697 03e6 B0EE690A 		vmov.f32	s0, s19
+ 698 03ea FFF7FEFF 		bl	arm_sin_f32
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 15
+
+
+ 699              	.LVL115:
+ 700              		.loc 1 101 31 discriminator 2 view .LVU208
+ 701 03ee 68EE808A 		vmul.f32	s17, s17, s0
+  98:modules/algorithm/VMC.c **** 			2.0f * dl0_ * dtheta_ * arm_sin_f32(theta_) +
+ 702              		.loc 1 98 8 view .LVU209
+ 703 03f2 38EE288A 		vadd.f32	s16, s16, s17
+ 704              	.LVL116:
+ 102:modules/algorithm/VMC.c **** 
+ 103:modules/algorithm/VMC.c **** 	// 获取VMC参数
+ 104:modules/algorithm/VMC.c **** 	vmc->phi_0 = phi0_;
+ 705              		.loc 1 104 2 is_stmt 1 view .LVU210
+ 706              		.loc 1 104 13 is_stmt 0 view .LVU211
+ 707 03f6 C4F800B0 		str	fp, [r4]	@ float
+ 105:modules/algorithm/VMC.c **** 	vmc->phi_1 = phi_1;
+ 708              		.loc 1 105 2 is_stmt 1 view .LVU212
+ 709              		.loc 1 105 13 is_stmt 0 view .LVU213
+ 710 03fa C4ED01BA 		vstr.32	s23, [r4, #4]
+ 106:modules/algorithm/VMC.c **** 	vmc->phi_2 = phi2_;
+ 711              		.loc 1 106 2 is_stmt 1 view .LVU214
+ 712              		.loc 1 106 13 is_stmt 0 view .LVU215
+ 713 03fe 84ED02AA 		vstr.32	s20, [r4, #8]
+ 107:modules/algorithm/VMC.c **** 	vmc->phi_3 = phi3_;
+ 714              		.loc 1 107 2 is_stmt 1 view .LVU216
+ 715              		.loc 1 107 13 is_stmt 0 view .LVU217
+ 716 0402 C4ED03CA 		vstr.32	s25, [r4, #12]
+ 108:modules/algorithm/VMC.c **** 	vmc->phi_4 = phi_4;
+ 717              		.loc 1 108 2 is_stmt 1 view .LVU218
+ 718              		.loc 1 108 13 is_stmt 0 view .LVU219
+ 719 0406 84ED04BA 		vstr.32	s22, [r4, #16]
+ 109:modules/algorithm/VMC.c ****     vmc->l0 = lenth_0;
+ 720              		.loc 1 109 5 is_stmt 1 view .LVU220
+ 721              		.loc 1 109 13 is_stmt 0 view .LVU221
+ 722 040a C4ED0DAA 		vstr.32	s21, [r4, #52]
+ 110:modules/algorithm/VMC.c **** 	vmc->dl0 = dl0_;
+ 723              		.loc 1 110 2 is_stmt 1 view .LVU222
+ 724              		.loc 1 110 11 is_stmt 0 view .LVU223
+ 725 040e 84ED0EDA 		vstr.32	s26, [r4, #56]
+ 111:modules/algorithm/VMC.c ****     vmc->dphi2 = dphi2_;
+ 726              		.loc 1 111 5 is_stmt 1 view .LVU224
+ 727              		.loc 1 111 16 is_stmt 0 view .LVU225
+ 728 0412 C4ED0FDA 		vstr.32	s27, [r4, #60]
+ 112:modules/algorithm/VMC.c ****     vmc->theta = theta_;
+ 729              		.loc 1 112 5 is_stmt 1 view .LVU226
+ 730              		.loc 1 112 16 is_stmt 0 view .LVU227
+ 731 0416 C4ED0A9A 		vstr.32	s19, [r4, #40]
+ 113:modules/algorithm/VMC.c **** 	vmc->lsat_dtheta = p_phi0_ - 0.5 * PI - phi_;
+ 732              		.loc 1 113 2 is_stmt 1 view .LVU228
+ 733              		.loc 1 113 40 is_stmt 0 view .LVU229
+ 734 041a 3046     		mov	r0, r6
+ 735 041c 3946     		mov	r1, r7
+ 736 041e FFF7FEFF 		bl	__aeabi_d2f
+ 737              	.LVL117:
+ 738              		.loc 1 113 19 view .LVU230
+ 739 0422 2063     		str	r0, [r4, #48]	@ float
+ 114:modules/algorithm/VMC.c ****     vmc->dtheta = dtheta_;
+ 740              		.loc 1 114 5 is_stmt 1 view .LVU231
+ 741              		.loc 1 114 17 is_stmt 0 view .LVU232
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 16
+
+
+ 742 0424 84ED0B9A 		vstr.32	s18, [r4, #44]
+ 743 0428 1CE0     		b	.L7
+ 744              	.L8:
+ 745 042a 00BFAFF3 		.align	3
+ 745      0080
+ 746              	.L6:
+ 747 0430 00000060 		.word	1610612736
+ 748 0434 FB21F93F 		.word	1073291771
+ 749 0438 00000000 		.word	lenth_4
+ 750 043c 00000000 		.word	lenth_5
+ 751 0440 00000000 		.word	lenth_2
+ 752 0444 00000000 		.word	lenth_3
+ 753 0448 00000000 		.word	last_dl0_.1
+ 754 044c 0BD7233C 		.word	1008981771
+ 755 0450 6F12033C 		.word	1006834287
+ 756 0454 00000000 		.word	0
+ 757 0458 00000000 		.word	lenth_1
+ 758 045c 00000000 		.word	control_dt
+ 759 0460 00000000 		.word	last_dtheta_.0
+ 760              	.L7:
+ 115:modules/algorithm/VMC.c **** 	vmc->ddzw = ddzw_;
+ 761              		.loc 1 115 2 is_stmt 1 view .LVU233
+ 762              		.loc 1 115 12 is_stmt 0 view .LVU234
+ 763 0464 84ED158A 		vstr.32	s16, [r4, #84]
+ 116:modules/algorithm/VMC.c **** 
+ 117:modules/algorithm/VMC.c **** 	last_dtheta_ = dtheta_;
+ 764              		.loc 1 117 2 is_stmt 1 view .LVU235
+ 765              		.loc 1 117 15 is_stmt 0 view .LVU236
+ 766 0468 88ED009A 		vstr.32	s18, [r8]
+ 118:modules/algorithm/VMC.c **** 	last_dl0_ = dl0_;
+ 767              		.loc 1 118 2 is_stmt 1 view .LVU237
+ 768              		.loc 1 118 12 is_stmt 0 view .LVU238
+ 769 046c 85ED00DA 		vstr.32	s26, [r5]
+ 119:modules/algorithm/VMC.c **** }
+ 770              		.loc 1 119 1 view .LVU239
+ 771 0470 03B0     		add	sp, sp, #12
+ 772              	.LCFI3:
+ 773              		.cfi_def_cfa_offset 100
+ 774              		@ sp needed
+ 775 0472 BDEC108B 		vldm	sp!, {d8-d15}
+ 776              	.LCFI4:
+ 777              		.cfi_restore 94
+ 778              		.cfi_restore 95
+ 779              		.cfi_restore 92
+ 780              		.cfi_restore 93
+ 781              		.cfi_restore 90
+ 782              		.cfi_restore 91
+ 783              		.cfi_restore 88
+ 784              		.cfi_restore 89
+ 785              		.cfi_restore 86
+ 786              		.cfi_restore 87
+ 787              		.cfi_restore 84
+ 788              		.cfi_restore 85
+ 789              		.cfi_restore 82
+ 790              		.cfi_restore 83
+ 791              		.cfi_restore 80
+ 792              		.cfi_restore 81
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 17
+
+
+ 793              		.cfi_def_cfa_offset 36
+ 794              	.LVL118:
+ 795              		.loc 1 119 1 view .LVU240
+ 796 0476 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 797              		.loc 1 119 1 view .LVU241
+ 798              		.cfi_endproc
+ 799              	.LFE274:
+ 801 047a 00BF     		.section	.text.VMC_Jacobian,"ax",%progbits
+ 802              		.align	1
+ 803              		.global	VMC_Jacobian
+ 804              		.syntax unified
+ 805              		.thumb
+ 806              		.thumb_func
+ 808              	VMC_Jacobian:
+ 809              	.LVL119:
+ 810              	.LFB275:
+ 120:modules/algorithm/VMC.c **** 
+ 121:modules/algorithm/VMC.c **** void VMC_Jacobian(VMC_t *vmc)
+ 122:modules/algorithm/VMC.c **** {
+ 811              		.loc 1 122 1 is_stmt 1 view -0
+ 812              		.cfi_startproc
+ 813              		@ args = 0, pretend = 0, frame = 0
+ 814              		@ frame_needed = 0, uses_anonymous_args = 0
+ 815              		.loc 1 122 1 is_stmt 0 view .LVU243
+ 816 0000 10B5     		push	{r4, lr}
+ 817              	.LCFI5:
+ 818              		.cfi_def_cfa_offset 8
+ 819              		.cfi_offset 4, -8
+ 820              		.cfi_offset 14, -4
+ 821 0002 2DED068B 		vpush.64	{d8, d9, d10}
+ 822              	.LCFI6:
+ 823              		.cfi_def_cfa_offset 32
+ 824              		.cfi_offset 80, -32
+ 825              		.cfi_offset 81, -28
+ 826              		.cfi_offset 82, -24
+ 827              		.cfi_offset 83, -20
+ 828              		.cfi_offset 84, -16
+ 829              		.cfi_offset 85, -12
+ 830 0006 0446     		mov	r4, r0
+ 123:modules/algorithm/VMC.c **** 	float phi32 = vmc->phi_3 - vmc->phi_2;
+ 831              		.loc 1 123 2 is_stmt 1 view .LVU244
+ 832              		.loc 1 123 19 is_stmt 0 view .LVU245
+ 833 0008 90ED038A 		vldr.32	s16, [r0, #12]
+ 834              		.loc 1 123 32 view .LVU246
+ 835 000c D0ED027A 		vldr.32	s15, [r0, #8]
+ 836              		.loc 1 123 8 view .LVU247
+ 837 0010 78EE679A 		vsub.f32	s19, s16, s15
+ 838              	.LVL120:
+ 124:modules/algorithm/VMC.c **** 	float phi03 = vmc->phi_0 - vmc->phi_3;
+ 839              		.loc 1 124 2 is_stmt 1 view .LVU248
+ 840              		.loc 1 124 19 is_stmt 0 view .LVU249
+ 841 0014 90ED009A 		vldr.32	s18, [r0]
+ 842              		.loc 1 124 8 view .LVU250
+ 843 0018 79EE48AA 		vsub.f32	s21, s18, s16
+ 844              	.LVL121:
+ 125:modules/algorithm/VMC.c **** 	float phi02 = vmc->phi_0 - vmc->phi_2;
+ 845              		.loc 1 125 2 is_stmt 1 view .LVU251
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 18
+
+
+ 846              		.loc 1 125 8 is_stmt 0 view .LVU252
+ 847 001c 39EE679A 		vsub.f32	s18, s18, s15
+ 848              	.LVL122:
+ 126:modules/algorithm/VMC.c **** 	float phi12 = vmc->phi_1 - vmc->phi_2;
+ 849              		.loc 1 126 2 is_stmt 1 view .LVU253
+ 850              		.loc 1 126 19 is_stmt 0 view .LVU254
+ 851 0020 90ED01AA 		vldr.32	s20, [r0, #4]
+ 852              		.loc 1 126 8 view .LVU255
+ 853 0024 3AEE67AA 		vsub.f32	s20, s20, s15
+ 854              	.LVL123:
+ 127:modules/algorithm/VMC.c **** 	float phi34 = vmc->phi_3 - vmc->phi_4;
+ 855              		.loc 1 127 2 is_stmt 1 view .LVU256
+ 856              		.loc 1 127 32 is_stmt 0 view .LVU257
+ 857 0028 D0ED047A 		vldr.32	s15, [r0, #16]
+ 858              		.loc 1 127 8 view .LVU258
+ 859 002c 38EE678A 		vsub.f32	s16, s16, s15
+ 860              	.LVL124:
+ 128:modules/algorithm/VMC.c ****   
+ 129:modules/algorithm/VMC.c **** 	vmc->j_[0] = vmc->l1 * arm_sin_f32(phi03) * arm_sin_f32(phi12) / arm_sin_f32(phi32);
+ 861              		.loc 1 129 2 is_stmt 1 view .LVU259
+ 862              		.loc 1 129 18 is_stmt 0 view .LVU260
+ 863 0030 D0ED058A 		vldr.32	s17, [r0, #20]
+ 864              		.loc 1 129 25 view .LVU261
+ 865 0034 B0EE6A0A 		vmov.f32	s0, s21
+ 866 0038 FFF7FEFF 		bl	arm_sin_f32
+ 867              	.LVL125:
+ 868              		.loc 1 129 23 discriminator 1 view .LVU262
+ 869 003c 68EE808A 		vmul.f32	s17, s17, s0
+ 870              		.loc 1 129 46 discriminator 1 view .LVU263
+ 871 0040 B0EE4A0A 		vmov.f32	s0, s20
+ 872 0044 FFF7FEFF 		bl	arm_sin_f32
+ 873              	.LVL126:
+ 874              		.loc 1 129 44 discriminator 2 view .LVU264
+ 875 0048 68EE808A 		vmul.f32	s17, s17, s0
+ 876              		.loc 1 129 67 discriminator 2 view .LVU265
+ 877 004c B0EE690A 		vmov.f32	s0, s19
+ 878 0050 FFF7FEFF 		bl	arm_sin_f32
+ 879              	.LVL127:
+ 880              		.loc 1 129 65 discriminator 3 view .LVU266
+ 881 0054 C8EE807A 		vdiv.f32	s15, s17, s0
+ 882              		.loc 1 129 13 discriminator 3 view .LVU267
+ 883 0058 C4ED107A 		vstr.32	s15, [r4, #64]
+ 130:modules/algorithm/VMC.c **** 	vmc->j_[1] = vmc->l1 * arm_cos_f32(phi03) * arm_sin_f32(phi12) /
+ 884              		.loc 1 130 2 is_stmt 1 view .LVU268
+ 885              		.loc 1 130 18 is_stmt 0 view .LVU269
+ 886 005c D4ED058A 		vldr.32	s17, [r4, #20]
+ 887              		.loc 1 130 25 view .LVU270
+ 888 0060 B0EE6A0A 		vmov.f32	s0, s21
+ 889 0064 FFF7FEFF 		bl	arm_cos_f32
+ 890              	.LVL128:
+ 891              		.loc 1 130 23 discriminator 1 view .LVU271
+ 892 0068 68EE808A 		vmul.f32	s17, s17, s0
+ 893              		.loc 1 130 46 discriminator 1 view .LVU272
+ 894 006c B0EE4A0A 		vmov.f32	s0, s20
+ 895 0070 FFF7FEFF 		bl	arm_sin_f32
+ 896              	.LVL129:
+ 897              		.loc 1 130 44 discriminator 2 view .LVU273
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 19
+
+
+ 898 0074 68EE808A 		vmul.f32	s17, s17, s0
+ 131:modules/algorithm/VMC.c **** 			(vmc->l0 * arm_sin_f32(phi32));
+ 899              		.loc 1 131 8 view .LVU274
+ 900 0078 94ED0DAA 		vldr.32	s20, [r4, #52]
+ 901              	.LVL130:
+ 902              		.loc 1 131 15 view .LVU275
+ 903 007c B0EE690A 		vmov.f32	s0, s19
+ 904 0080 FFF7FEFF 		bl	arm_sin_f32
+ 905              	.LVL131:
+ 906              		.loc 1 131 13 discriminator 1 view .LVU276
+ 907 0084 2AEE00AA 		vmul.f32	s20, s20, s0
+ 130:modules/algorithm/VMC.c **** 	vmc->j_[1] = vmc->l1 * arm_cos_f32(phi03) * arm_sin_f32(phi12) /
+ 908              		.loc 1 130 65 view .LVU277
+ 909 0088 C8EE8A7A 		vdiv.f32	s15, s17, s20
+ 130:modules/algorithm/VMC.c **** 	vmc->j_[1] = vmc->l1 * arm_cos_f32(phi03) * arm_sin_f32(phi12) /
+ 910              		.loc 1 130 13 view .LVU278
+ 911 008c C4ED117A 		vstr.32	s15, [r4, #68]
+ 132:modules/algorithm/VMC.c **** 	vmc->j_[2] = vmc->l4 * arm_sin_f32(phi02) * arm_sin_f32(phi34) / arm_sin_f32(phi32);
+ 912              		.loc 1 132 2 is_stmt 1 view .LVU279
+ 913              		.loc 1 132 18 is_stmt 0 view .LVU280
+ 914 0090 D4ED088A 		vldr.32	s17, [r4, #32]
+ 915              		.loc 1 132 25 view .LVU281
+ 916 0094 B0EE490A 		vmov.f32	s0, s18
+ 917 0098 FFF7FEFF 		bl	arm_sin_f32
+ 918              	.LVL132:
+ 919              		.loc 1 132 23 discriminator 1 view .LVU282
+ 920 009c 68EE808A 		vmul.f32	s17, s17, s0
+ 921              		.loc 1 132 46 discriminator 1 view .LVU283
+ 922 00a0 B0EE480A 		vmov.f32	s0, s16
+ 923 00a4 FFF7FEFF 		bl	arm_sin_f32
+ 924              	.LVL133:
+ 925              		.loc 1 132 44 discriminator 2 view .LVU284
+ 926 00a8 68EE808A 		vmul.f32	s17, s17, s0
+ 927              		.loc 1 132 67 discriminator 2 view .LVU285
+ 928 00ac B0EE690A 		vmov.f32	s0, s19
+ 929 00b0 FFF7FEFF 		bl	arm_sin_f32
+ 930              	.LVL134:
+ 931              		.loc 1 132 65 discriminator 3 view .LVU286
+ 932 00b4 C8EE807A 		vdiv.f32	s15, s17, s0
+ 933              		.loc 1 132 13 discriminator 3 view .LVU287
+ 934 00b8 C4ED127A 		vstr.32	s15, [r4, #72]
+ 133:modules/algorithm/VMC.c **** 	vmc->j_[3] = vmc->l4 * arm_cos_f32(phi02) * arm_sin_f32(phi34) /
+ 935              		.loc 1 133 2 is_stmt 1 view .LVU288
+ 936              		.loc 1 133 18 is_stmt 0 view .LVU289
+ 937 00bc D4ED088A 		vldr.32	s17, [r4, #32]
+ 938              		.loc 1 133 25 view .LVU290
+ 939 00c0 B0EE490A 		vmov.f32	s0, s18
+ 940 00c4 FFF7FEFF 		bl	arm_cos_f32
+ 941              	.LVL135:
+ 942              		.loc 1 133 23 discriminator 1 view .LVU291
+ 943 00c8 68EE808A 		vmul.f32	s17, s17, s0
+ 944              		.loc 1 133 46 discriminator 1 view .LVU292
+ 945 00cc B0EE480A 		vmov.f32	s0, s16
+ 946 00d0 FFF7FEFF 		bl	arm_sin_f32
+ 947              	.LVL136:
+ 948              		.loc 1 133 44 discriminator 2 view .LVU293
+ 949 00d4 28EE808A 		vmul.f32	s16, s17, s0
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 20
+
+
+ 950              	.LVL137:
+ 134:modules/algorithm/VMC.c **** 			(vmc->l0 * arm_sin_f32(phi32));
+ 951              		.loc 1 134 8 view .LVU294
+ 952 00d8 D4ED0D8A 		vldr.32	s17, [r4, #52]
+ 953              		.loc 1 134 15 view .LVU295
+ 954 00dc B0EE690A 		vmov.f32	s0, s19
+ 955 00e0 FFF7FEFF 		bl	arm_sin_f32
+ 956              	.LVL138:
+ 957              		.loc 1 134 13 discriminator 1 view .LVU296
+ 958 00e4 68EE808A 		vmul.f32	s17, s17, s0
+ 133:modules/algorithm/VMC.c **** 	vmc->j_[3] = vmc->l4 * arm_cos_f32(phi02) * arm_sin_f32(phi34) /
+ 959              		.loc 1 133 65 view .LVU297
+ 960 00e8 C8EE287A 		vdiv.f32	s15, s16, s17
+ 133:modules/algorithm/VMC.c **** 	vmc->j_[3] = vmc->l4 * arm_cos_f32(phi02) * arm_sin_f32(phi34) /
+ 961              		.loc 1 133 13 view .LVU298
+ 962 00ec C4ED137A 		vstr.32	s15, [r4, #76]
+ 135:modules/algorithm/VMC.c **** 
+ 136:modules/algorithm/VMC.c **** 	// vmc->j_[0] = ( vmc->l1 * arm_sin_f32(vmc->phi_0 - vmc->phi_3) * arm_sin_f32( vmc->phi_1 - vmc->
+ 137:modules/algorithm/VMC.c **** 	// 	/ (arm_sin_f32( vmc->phi_3 - vmc->phi_2 ));
+ 138:modules/algorithm/VMC.c **** 	// vmc->j_[1] = ( vmc->l1 * arm_cos_f32(vmc->phi_0 - vmc->phi_3) * arm_sin_f32( vmc->phi_1 - vmc->
+ 139:modules/algorithm/VMC.c **** 	// 	/ (arm_sin_f32( vmc->phi_3 - vmc->phi_2 ) * vmc->l0);
+ 140:modules/algorithm/VMC.c **** 	// vmc->j_[2] = ( vmc->l4 * arm_sin_f32(vmc->phi_0 - vmc->phi_2) * arm_sin_f32( vmc->phi_3 - vmc->
+ 141:modules/algorithm/VMC.c **** 	// 	/ (arm_sin_f32( vmc->phi_3 - vmc->phi_2 ));
+ 142:modules/algorithm/VMC.c **** 	// vmc->j_[3] = ( vmc->l4 * arm_cos_f32(vmc->phi_0 - vmc->phi_2) * arm_sin_f32( vmc->phi_3 - vmc->
+ 143:modules/algorithm/VMC.c **** 	// 	/ (arm_sin_f32( vmc->phi_3 - vmc->phi_2 ) * vmc->l0);
+ 144:modules/algorithm/VMC.c **** }
+ 963              		.loc 1 144 1 view .LVU299
+ 964 00f0 BDEC068B 		vldm	sp!, {d8-d10}
+ 965              	.LCFI7:
+ 966              		.cfi_restore 84
+ 967              		.cfi_restore 85
+ 968              		.cfi_restore 82
+ 969              		.cfi_restore 83
+ 970              		.cfi_restore 80
+ 971              		.cfi_restore 81
+ 972              		.cfi_def_cfa_offset 8
+ 973              	.LVL139:
+ 974              		.loc 1 144 1 view .LVU300
+ 975 00f4 10BD     		pop	{r4, pc}
+ 976              		.loc 1 144 1 view .LVU301
+ 977              		.cfi_endproc
+ 978              	.LFE275:
+ 980              		.section	.text.VMC_Force,"ax",%progbits
+ 981              		.align	1
+ 982              		.global	VMC_Force
+ 983              		.syntax unified
+ 984              		.thumb
+ 985              		.thumb_func
+ 987              	VMC_Force:
+ 988              	.LVL140:
+ 989              	.LFB276:
+ 145:modules/algorithm/VMC.c **** 
+ 146:modules/algorithm/VMC.c **** void VMC_Force(VMC_t *vmc, float torq_f, float torq_b, float wr) {
+ 990              		.loc 1 146 66 is_stmt 1 view -0
+ 991              		.cfi_startproc
+ 992              		@ args = 0, pretend = 0, frame = 16
+ 993              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 21
+
+
+ 994              		.loc 1 146 66 is_stmt 0 view .LVU303
+ 995 0000 10B5     		push	{r4, lr}
+ 996              	.LCFI8:
+ 997              		.cfi_def_cfa_offset 8
+ 998              		.cfi_offset 4, -8
+ 999              		.cfi_offset 14, -4
+ 1000 0002 2DED048B 		vpush.64	{d8, d9}
+ 1001              	.LCFI9:
+ 1002              		.cfi_def_cfa_offset 24
+ 1003              		.cfi_offset 80, -24
+ 1004              		.cfi_offset 81, -20
+ 1005              		.cfi_offset 82, -16
+ 1006              		.cfi_offset 83, -12
+ 1007 0006 84B0     		sub	sp, sp, #16
+ 1008              	.LCFI10:
+ 1009              		.cfi_def_cfa_offset 40
+ 1010 0008 0446     		mov	r4, r0
+ 1011 000a B0EE419A 		vmov.f32	s18, s2
+ 147:modules/algorithm/VMC.c **** 	float det = vmc->j_[0] * vmc->j_[3] - vmc->j_[1] * vmc->j_[2];
+ 1012              		.loc 1 147 2 is_stmt 1 view .LVU304
+ 1013              		.loc 1 147 21 is_stmt 0 view .LVU305
+ 1014 000e 90ED105A 		vldr.32	s10, [r0, #64]
+ 1015              		.loc 1 147 34 view .LVU306
+ 1016 0012 D0ED135A 		vldr.32	s11, [r0, #76]
+ 1017              		.loc 1 147 25 view .LVU307
+ 1018 0016 65EE256A 		vmul.f32	s13, s10, s11
+ 1019              		.loc 1 147 47 view .LVU308
+ 1020 001a 90ED116A 		vldr.32	s12, [r0, #68]
+ 1021              		.loc 1 147 60 view .LVU309
+ 1022 001e D0ED127A 		vldr.32	s15, [r0, #72]
+ 1023              		.loc 1 147 51 view .LVU310
+ 1024 0022 26EE277A 		vmul.f32	s14, s12, s15
+ 1025              		.loc 1 147 8 view .LVU311
+ 1026 0026 76EEC76A 		vsub.f32	s13, s13, s14
+ 1027              	.LVL141:
+ 148:modules/algorithm/VMC.c **** 	float temp1_, temp2_, temp3_;
+ 1028              		.loc 1 148 2 is_stmt 1 view .LVU312
+ 149:modules/algorithm/VMC.c **** 	float inv_j_[4];
+ 1029              		.loc 1 149 2 view .LVU313
+ 150:modules/algorithm/VMC.c **** 
+ 151:modules/algorithm/VMC.c **** 	inv_j_[0] = vmc->j_[3] / det;
+ 1030              		.loc 1 151 2 view .LVU314
+ 1031              		.loc 1 151 25 is_stmt 0 view .LVU315
+ 1032 002a 85EEA67A 		vdiv.f32	s14, s11, s13
+ 1033              		.loc 1 151 12 view .LVU316
+ 1034 002e 8DED007A 		vstr.32	s14, [sp]
+ 152:modules/algorithm/VMC.c **** 	inv_j_[1] = -vmc->j_[1] / det;
+ 1035              		.loc 1 152 2 is_stmt 1 view .LVU317
+ 1036              		.loc 1 152 14 is_stmt 0 view .LVU318
+ 1037 0032 B1EE466A 		vneg.f32	s12, s12
+ 1038              		.loc 1 152 26 view .LVU319
+ 1039 0036 C6EE265A 		vdiv.f32	s11, s12, s13
+ 1040              		.loc 1 152 12 view .LVU320
+ 1041 003a CDED015A 		vstr.32	s11, [sp, #4]
+ 153:modules/algorithm/VMC.c **** 	inv_j_[2] = -vmc->j_[2] / det;
+ 1042              		.loc 1 153 2 is_stmt 1 view .LVU321
+ 1043              		.loc 1 153 14 is_stmt 0 view .LVU322
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 22
+
+
+ 1044 003e B1EE676A 		vneg.f32	s12, s15
+ 1045              		.loc 1 153 26 view .LVU323
+ 1046 0042 C6EE267A 		vdiv.f32	s15, s12, s13
+ 1047              		.loc 1 153 12 view .LVU324
+ 1048 0046 CDED027A 		vstr.32	s15, [sp, #8]
+ 154:modules/algorithm/VMC.c **** 	inv_j_[3] = vmc->j_[0] / det;
+ 1049              		.loc 1 154 2 is_stmt 1 view .LVU325
+ 1050              		.loc 1 154 25 is_stmt 0 view .LVU326
+ 1051 004a 85EE266A 		vdiv.f32	s12, s10, s13
+ 1052              		.loc 1 154 12 view .LVU327
+ 1053 004e 8DED036A 		vstr.32	s12, [sp, #12]
+ 155:modules/algorithm/VMC.c ****   
+ 156:modules/algorithm/VMC.c **** 	temp1_ = inv_j_[0] * torq_f + inv_j_[1] * torq_b;
+ 1054              		.loc 1 156 2 is_stmt 1 view .LVU328
+ 1055              		.loc 1 156 21 is_stmt 0 view .LVU329
+ 1056 0052 27EE007A 		vmul.f32	s14, s14, s0
+ 1057              		.loc 1 156 42 view .LVU330
+ 1058 0056 65EEA05A 		vmul.f32	s11, s11, s1
+ 1059              		.loc 1 156 9 view .LVU331
+ 1060 005a 77EE258A 		vadd.f32	s17, s14, s11
+ 1061              	.LVL142:
+ 157:modules/algorithm/VMC.c **** 	temp2_ = inv_j_[2] * torq_f + inv_j_[3] * torq_b;
+ 1062              		.loc 1 157 2 is_stmt 1 view .LVU332
+ 1063              		.loc 1 157 21 is_stmt 0 view .LVU333
+ 1064 005e 67EE807A 		vmul.f32	s15, s15, s0
+ 1065              		.loc 1 157 42 view .LVU334
+ 1066 0062 26EE206A 		vmul.f32	s12, s12, s1
+ 1067              		.loc 1 157 9 view .LVU335
+ 1068 0066 37EE868A 		vadd.f32	s16, s15, s12
+ 1069              	.LVL143:
+ 158:modules/algorithm/VMC.c **** 	temp3_ = temp1_ * arm_cos_f32(vmc->theta) + temp2_ * arm_sin_f32(vmc->theta) / vmc->l0;
+ 1070              		.loc 1 158 2 is_stmt 1 view .LVU336
+ 1071              		.loc 1 158 20 is_stmt 0 view .LVU337
+ 1072 006a 90ED0A0A 		vldr.32	s0, [r0, #40]
+ 1073              	.LVL144:
+ 1074              		.loc 1 158 20 view .LVU338
+ 1075 006e FFF7FEFF 		bl	arm_cos_f32
+ 1076              	.LVL145:
+ 1077              		.loc 1 158 18 discriminator 1 view .LVU339
+ 1078 0072 60EE288A 		vmul.f32	s17, s0, s17
+ 1079              	.LVL146:
+ 1080              		.loc 1 158 55 discriminator 1 view .LVU340
+ 1081 0076 94ED0A0A 		vldr.32	s0, [r4, #40]
+ 1082 007a FFF7FEFF 		bl	arm_sin_f32
+ 1083              	.LVL147:
+ 1084              		.loc 1 158 53 discriminator 2 view .LVU341
+ 1085 007e 20EE080A 		vmul.f32	s0, s0, s16
+ 1086              		.loc 1 158 84 discriminator 2 view .LVU342
+ 1087 0082 94ED0D7A 		vldr.32	s14, [r4, #52]
+ 1088              		.loc 1 158 79 discriminator 2 view .LVU343
+ 1089 0086 C0EE077A 		vdiv.f32	s15, s0, s14
+ 1090              		.loc 1 158 9 discriminator 2 view .LVU344
+ 1091 008a 78EEA78A 		vadd.f32	s17, s17, s15
+ 1092              	.LVL148:
+ 159:modules/algorithm/VMC.c **** 	vmc->fn = temp3_ + wr * (9.8f + vmc->ddzw);
+ 1093              		.loc 1 159 2 is_stmt 1 view .LVU345
+ 1094              		.loc 1 159 37 is_stmt 0 view .LVU346
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 23
+
+
+ 1095 008e 94ED151A 		vldr.32	s2, [r4, #84]
+ 1096              		.loc 1 159 32 view .LVU347
+ 1097 0092 DFED077A 		vldr.32	s15, .L13
+ 1098 0096 31EE271A 		vadd.f32	s2, s2, s15
+ 1099              		.loc 1 159 24 view .LVU348
+ 1100 009a 21EE091A 		vmul.f32	s2, s2, s18
+ 1101              		.loc 1 159 19 view .LVU349
+ 1102 009e 31EE281A 		vadd.f32	s2, s2, s17
+ 1103              		.loc 1 159 10 view .LVU350
+ 1104 00a2 84ED141A 		vstr.32	s2, [r4, #80]
+ 160:modules/algorithm/VMC.c ****   }
+ 1105              		.loc 1 160 3 view .LVU351
+ 1106 00a6 04B0     		add	sp, sp, #16
+ 1107              	.LCFI11:
+ 1108              		.cfi_def_cfa_offset 24
+ 1109              	.LVL149:
+ 1110              		.loc 1 160 3 view .LVU352
+ 1111              		@ sp needed
+ 1112 00a8 BDEC048B 		vldm	sp!, {d8-d9}
+ 1113              	.LCFI12:
+ 1114              		.cfi_restore 82
+ 1115              		.cfi_restore 83
+ 1116              		.cfi_restore 80
+ 1117              		.cfi_restore 81
+ 1118              		.cfi_def_cfa_offset 8
+ 1119              	.LVL150:
+ 1120              		.loc 1 160 3 view .LVU353
+ 1121 00ac 10BD     		pop	{r4, pc}
+ 1122              	.LVL151:
+ 1123              	.L14:
+ 1124              		.loc 1 160 3 view .LVU354
+ 1125 00ae 00BF     		.align	2
+ 1126              	.L13:
+ 1127 00b0 CDCC1C41 		.word	1092406477
+ 1128              		.cfi_endproc
+ 1129              	.LFE276:
+ 1131              		.section	.bss.last_dtheta_.0,"aw",%nobits
+ 1132              		.align	2
+ 1135              	last_dtheta_.0:
+ 1136 0000 00000000 		.space	4
+ 1137              		.section	.bss.last_dl0_.1,"aw",%nobits
+ 1138              		.align	2
+ 1141              	last_dl0_.1:
+ 1142 0000 00000000 		.space	4
+ 1143              		.section	.bss.control_dt,"aw",%nobits
+ 1144              		.align	2
+ 1147              	control_dt:
+ 1148 0000 00000000 		.space	4
+ 1149              		.section	.bss.lenth_5,"aw",%nobits
+ 1150              		.align	2
+ 1153              	lenth_5:
+ 1154 0000 00000000 		.space	4
+ 1155              		.section	.bss.lenth_4,"aw",%nobits
+ 1156              		.align	2
+ 1159              	lenth_4:
+ 1160 0000 00000000 		.space	4
+ 1161              		.section	.bss.lenth_3,"aw",%nobits
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 24
+
+
+ 1162              		.align	2
+ 1165              	lenth_3:
+ 1166 0000 00000000 		.space	4
+ 1167              		.section	.bss.lenth_2,"aw",%nobits
+ 1168              		.align	2
+ 1171              	lenth_2:
+ 1172 0000 00000000 		.space	4
+ 1173              		.section	.bss.lenth_1,"aw",%nobits
+ 1174              		.align	2
+ 1177              	lenth_1:
+ 1178 0000 00000000 		.space	4
+ 1179              		.text
+ 1180              	.Letext0:
+ 1181              		.file 2 "modules/algorithm/VMC.h"
+ 1182              		.file 3 "Middlewares/ST/ARM/DSP/Include/arm_math_types.h"
+ 1183              		.file 4 "D:/Msys2/mingw64/arm-none-eabi/include/math.h"
+ 1184              		.file 5 "Middlewares/ST/ARM/DSP/Include/dsp/fast_math_functions.h"
+ARM GAS  C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s 			page 25
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 VMC.c
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:21     .text.VMC_Init:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:27     .text.VMC_Init:00000000 VMC_Init
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:79     .text.VMC_Init:0000003c $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1147   .bss.control_dt:00000000 control_dt
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1177   .bss.lenth_1:00000000 lenth_1
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1171   .bss.lenth_2:00000000 lenth_2
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1165   .bss.lenth_3:00000000 lenth_3
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1159   .bss.lenth_4:00000000 lenth_4
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1153   .bss.lenth_5:00000000 lenth_5
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:93     .text.VMC_Calc:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:99     .text.VMC_Calc:00000000 VMC_Calc
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:747    .text.VMC_Calc:00000430 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1141   .bss.last_dl0_.1:00000000 last_dl0_.1
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1135   .bss.last_dtheta_.0:00000000 last_dtheta_.0
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:763    .text.VMC_Calc:00000464 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:802    .text.VMC_Jacobian:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:808    .text.VMC_Jacobian:00000000 VMC_Jacobian
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:981    .text.VMC_Force:00000000 $t
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:987    .text.VMC_Force:00000000 VMC_Force
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1127   .text.VMC_Force:000000b0 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1132   .bss.last_dtheta_.0:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1138   .bss.last_dl0_.1:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1144   .bss.control_dt:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1150   .bss.lenth_5:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1156   .bss.lenth_4:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1162   .bss.lenth_3:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1168   .bss.lenth_2:00000000 $d
+C:\Users\ADMINI~1\AppData\Local\Temp\cc0Q1Qbd.s:1174   .bss.lenth_1:00000000 $d
+
+UNDEFINED SYMBOLS
+__aeabi_f2d
+__aeabi_dsub
+__aeabi_d2f
+__aeabi_ddiv
+arm_cos_f32
+arm_sin_f32
+powf
+sqrtf
+atan2f
